@@ -2,6 +2,7 @@ set(SOMNI_KERNEL_SOURCES
     src/core/EventBus.cpp
     src/core/WorldState.cpp
     src/core/TickEngine.cpp
+    src/core/SimulationLOD.cpp
     src/core/SimulationKernel.cpp
     src/world/Geography.cpp
     src/world/Resources.cpp
