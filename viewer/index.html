@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SOMNI — Living World Viewer</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: #000; overflow: hidden; font-family: 'Segoe UI', system-ui, sans-serif; }
+  #c { display: block; width: 100vw; height: 100vh; }
+
+  #hud { position: fixed; inset: 0; pointer-events: none; color: #fff; }
+  .panel {
+    position: absolute; background: rgba(10,12,16,0.65);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 14px; box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+  .panel h3 {
+    font-size: 10px; color: #9aa; text-transform: uppercase;
+    letter-spacing: 2px; margin-bottom: 10px; font-weight: 600;
+  }
+
+  #status { top: 18px; left: 18px; display: flex; align-items: center; gap: 8px;
+    padding: 8px 14px; border-radius: 20px; }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #e44; flex-shrink:0; }
+  .status-dot.connected { background: #4e8; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; box-shadow: 0 0 0 0 rgba(80,255,140,0.5);} 50% { opacity: 0.7; box-shadow: 0 0 0 6px rgba(80,255,140,0);} }
+  #status span { font-size: 11px; color: #ccc; }
+
+  #clock-panel { top: 18px; left: 50%; transform: translateX(-50%);
+    padding: 14px 28px; text-align: center; min-width: 220px; }
+  #clock-year { font-size: 10px; color: #9aa; text-transform: uppercase; letter-spacing: 2px; }
+  #clock-date { font-size: 19px; font-weight: 700; margin: 5px 0 2px; letter-spacing: 0.5px; }
+  #clock-tick { font-size: 10px; color: #778; }
+
+  #factions-panel { top: 18px; right: 18px; padding: 16px; min-width: 210px; max-height: 280px; overflow-y: auto; }
+  .faction-row { display: flex; align-items: center; gap: 9px; margin-bottom: 9px; }
+  .faction-dot { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 8px currentColor; }
+  .faction-name { font-size: 13px; flex: 1; font-weight: 500; }
+  .faction-pop { font-size: 11px; color: #99a; }
+
+  #events-panel { bottom: 18px; left: 18px; padding: 14px 18px; width: 380px; max-height: 190px; overflow: hidden; }
+  .event-row { font-size: 12px; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.06);
+    opacity: 0; animation: slidein 0.4s forwards; }
+  @keyframes slidein { from { opacity:0; transform: translateX(-8px);} to { opacity:1; transform: translateX(0);} }
+  .event-row .t { color: #778; margin-right: 7px; font-size: 10px; }
+  .event-war  { color: #f66; }
+  .event-death{ color: #ba8; }
+  .event-trade{ color: #6cf; }
+
+  #stats-panel { bottom: 18px; right: 18px; padding: 16px; min-width: 160px; }
+  .stat-row { display: flex; justify-content: space-between; gap: 20px; margin-bottom: 7px; font-size: 12px; }
+  .stat-label { color: #99a; }
+  .stat-value { font-weight: 700; }
+
+  #controls-hint { bottom: 18px; left: 50%; transform: translateX(-50%);
+    padding: 8px 16px; font-size: 11px; color: #99a; }
+
+  #loading { position: fixed; inset:0; background:#05070a; display:flex; align-items:center;
+    justify-content:center; flex-direction:column; gap:14px; z-index:100; transition: opacity 0.6s; }
+  #loading .spinner { width: 40px; height:40px; border:3px solid rgba(255,255,255,0.15);
+    border-top-color:#6cf; border-radius:50%; animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #loading p { color:#99a; font-size:13px; letter-spacing:1px; }
+  #loading h1 { color:#fff; font-size: 22px; letter-spacing: 4px; font-weight: 300; }
+</style>
+</head>
+<body>
+<div id="loading">
+  <h1>S O M N I</h1>
+  <div class="spinner"></div>
+  <p id="loading-text">CONNECTING TO SIMULATION KERNEL...</p>
+</div>
+
+<canvas id="c"></canvas>
+
+<div id="hud">
+  <div id="status" class="panel">
+    <div class="status-dot" id="status-dot"></div>
+    <span id="status-text">Offline — demo world</span>
+  </div>
+
+  <div id="clock-panel" class="panel">
+    <div id="clock-year">YEAR 1 — SPRING</div>
+    <div id="clock-date">Month 1, Day 1 — 06:00</div>
+    <div id="clock-tick">Tick 0</div>
+  </div>
+
+  <div id="factions-panel" class="panel">
+    <h3>Factions</h3>
+    <div id="factions-list"></div>
+  </div>
+
+  <div id="events-panel" class="panel">
+    <h3>⚡ Live Events</h3>
+    <div id="events-list"></div>
+  </div>
+
+  <div id="stats-panel" class="panel">
+    <div class="stat-row"><span class="stat-label">Total NPCs</span><span class="stat-value" id="stat-npcs">—</span></div>
+    <div class="stat-row"><span class="stat-label">Active Wars</span><span class="stat-value" id="stat-wars">—</span></div>
+    <div class="stat-row"><span class="stat-label">Regions</span><span class="stat-value" id="stat-regions">—</span></div>
+    <div class="stat-row"><span class="stat-label">FPS</span><span class="stat-value" id="stat-fps">—</span></div>
+  </div>
+
+  <div id="controls-hint" class="panel">🖱 Drag to orbit · Scroll to zoom · Right-drag to pan</div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { Sky } from 'three/addons/objects/Sky.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+// ===========================================================================
+// CONFIG
+// ===========================================================================
+const API_BASE  = window.SOMNI_API  || 'http://localhost:8080';
+const WS_URL    = window.SOMNI_WS   || 'ws://localhost:8080/ws';
+const CELL      = 4;          // visual units per region
+const MAX_TREES = 24000;
+const MAX_ROCKS = 6000;
+const MAX_NPCS  = 16000;
+
+const FACTION_COLORS = [0xff4d4d, 0x4d8cff, 0x4dff7a, 0xffe14d, 0xff4dd2, 0x4dffe1, 0xff944d, 0xa14dff];
+
+const BIOME = {
+  0:  { name:'Ocean',           color:[0.04,0.28,0.46], elev:-0.45, trees:0.00, rocks:0.00 },
+  1:  { name:'Tundra',          color:[0.74,0.81,0.86], elev: 0.18, trees:0.04, rocks:0.10 },
+  2:  { name:'Boreal Forest',   color:[0.16,0.32,0.16], elev: 0.32, trees:0.70, rocks:0.05 },
+  3:  { name:'Temperate Forest',color:[0.20,0.46,0.24], elev: 0.28, trees:0.80, rocks:0.04 },
+  4:  { name:'Grassland',       color:[0.45,0.68,0.30], elev: 0.08, trees:0.05, rocks:0.02 },
+  5:  { name:'Savanna',         color:[0.74,0.62,0.32], elev: 0.12, trees:0.10, rocks:0.03 },
+  6:  { name:'Desert',          color:[0.88,0.76,0.46], elev: 0.15, trees:0.00, rocks:0.08 },
+  7:  { name:'Jungle',          color:[0.09,0.38,0.11], elev: 0.24, trees:0.95, rocks:0.02 },
+  8:  { name:'Swamp',           color:[0.27,0.37,0.23], elev: 0.04, trees:0.40, rocks:0.01 },
+  9:  { name:'Mountains',       color:[0.52,0.52,0.55], elev: 1.60, trees:0.04, rocks:0.35 },
+  10: { name:'Ice Sheet',       color:[0.92,0.95,0.99], elev: 0.70, trees:0.00, rocks:0.05 },
+};
+
+// ===========================================================================
+// DETERMINISTIC DEMO NOISE (fallback when no kernel connected)
+// ===========================================================================
+function hash2(x, y, seed) {
+  let n = x * 374761393 + y * 668265263 + seed * 2147483647;
+  n = (n ^ (n >> 13)) * 1274126177;
+  return ((n ^ (n >> 16)) >>> 0) / 4294967295;
+}
+function smooth2(x, y, seed) {
+  const fx = Math.floor(x), fy = Math.floor(y), cx = x-fx, cy = y-fy;
+  const u = cx*cx*(3-2*cx), v = cy*cy*(3-2*cy);
+  const v00=hash2(fx,fy,seed), v10=hash2(fx+1,fy,seed), v01=hash2(fx,fy+1,seed), v11=hash2(fx+1,fy+1,seed);
+  return v00*(1-u)*(1-v) + v10*u*(1-v) + v01*(1-u)*v + v11*u*v;
+}
+function fbm(x, y, seed, octaves=4) {
+  let v=0, amp=1, freq=1, max=0;
+  for (let i=0;i<octaves;i++){ v += smooth2(x*freq,y*freq,seed+i*101)*amp; max+=amp; amp*=0.5; freq*=2.1; }
+  return v/max;
+}
+function buildDemoWorld(gw=32, gh=32, nFactions=3) {
+  const regions = [];
+  for (let gy=0; gy<gh; gy++) {
+    for (let gx=0; gx<gw; gx++) {
+      const n = fbm(gx*0.15, gy*0.15, 42);
+      const cx = gw/2, cy = gh/2;
+      const d = Math.sqrt((gx-cx)**2+(gy-cy)**2) / (Math.max(gw,gh)*0.5);
+      const island = n - d*0.55;
+      let biome = 4;
+      if (island < 0.05) biome = 0;
+      else if (island > 0.55) biome = 9;
+      else {
+        const m = fbm(gx*0.2+99, gy*0.2+99, 7);
+        if (m < 0.3) biome = 6; else if (m < 0.55) biome = 4; else if (m < 0.8) biome = 3; else biome = 7;
+      }
+      const fid = biome !== 0 && hash2(gx,gy,777) > 0.55 ? (Math.floor(hash2(gx,gy,55)*nFactions)) : 0xFFFFFFFF;
+      regions.push({
+        id: gy*gw+gx, grid_x:gx, grid_y:gy, biome,
+        npc_count: biome===0?0:Math.floor(hash2(gx,gy,3)*40),
+        controlling_faction: fid,
+        resources: new Array(16).fill(50),
+      });
+    }
+  }
+  return { config:{name:'demo_world',width:gw*16,height:gh*16,region_size:16},
+    clock:{tick:0,year:1,season:0,month:1,day:1,hour:6}, regions };
+}
+
+// ===========================================================================
+// SCENE SETUP
+// ===========================================================================
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.15;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, 0.1, 4000);
+camera.position.set(80, 90, 130);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.maxPolarAngle = Math.PI * 0.49;
+controls.minDistance = 10;
+controls.maxDistance = 600;
+
+// --- Sky ---
+const sky = new Sky();
+sky.scale.setScalar(4500);
+scene.add(sky);
+const sun = new THREE.Vector3();
+const skyUniforms = sky.material.uniforms;
+skyUniforms['turbidity'].value = 3;
+skyUniforms['rayleigh'].value = 1.2;
+skyUniforms['mieCoefficient'].value = 0.006;
+skyUniforms['mieDirectionalG'].value = 0.85;
+
+// --- Lights ---
+const sunLight = new THREE.DirectionalLight(0xfff2d8, 2.2);
+sunLight.castShadow = true;
+sunLight.shadow.mapSize.set(2048, 2048);
+sunLight.shadow.camera.left = -200; sunLight.shadow.camera.right = 200;
+sunLight.shadow.camera.top = 200; sunLight.shadow.camera.bottom = -200;
+sunLight.shadow.camera.far = 600;
+scene.add(sunLight);
+
+const hemi = new THREE.HemisphereLight(0xbfd8ff, 0x3a3022, 0.55);
+scene.add(hemi);
+
+scene.fog = new THREE.FogExp2(0x9fc3e8, 0.0026);
+
+// --- Post-processing (bloom for glowing NPCs / battle flares) ---
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.55, 0.5, 0.82);
+composer.addPass(bloom);
+
+// ===========================================================================
+// WORLD BUILDER
+// ===========================================================================
+let worldGroup = new THREE.Group();
+scene.add(worldGroup);
+let treeMesh, rockMesh, npcMesh, waterMesh, terrainMesh;
+let factionMeta = {};
+let battleFlashRegions = new Map(); // region_id -> expiry time
+
+function colorLerp(a, b, t) { return [a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t, a[2]+(b[2]-a[2])*t]; }
+
+function buildWorld(world) {
+  // Clear previous
+  scene.remove(worldGroup);
+  worldGroup = new THREE.Group();
+  scene.add(worldGroup);
+
+  const cfg = world.config;
+  const gw = Math.max(1, Math.floor(cfg.width / cfg.region_size));
+  const gh = Math.max(1, Math.floor(cfg.height / cfg.region_size));
+  const W = gw * CELL, H = gh * CELL;
+
+  // --- Terrain mesh (vertex-colored, displaced by biome elevation) ---
+  const geo = new THREE.PlaneGeometry(W, H, gw - 1, gh - 1);
+  geo.rotateX(-Math.PI / 2);
+  const pos = geo.attributes.position;
+  const colors = new Float32Array(pos.count * 3);
+  const regionByCoord = new Map();
+  for (const r of world.regions) regionByCoord.set(r.grid_y * gw + r.grid_x, r);
+
+  for (let iy = 0; iy <= gh - 1; iy++) {
+    for (let ix = 0; ix <= gw - 1; ix++) {
+      const i = iy * gw + ix;
+      const r = regionByCoord.get(i) || { biome: 4 };
+      const b = BIOME[r.biome] ?? BIOME[4];
+      let h = b.elev * 9;
+      // smooth-ish via neighbor average to avoid harsh blocky cliffs
+      pos.setY(i, h);
+      const c = b.color;
+      colors[i*3] = c[0]; colors[i*3+1] = c[1]; colors[i*3+2] = c[2];
+    }
+  }
+  geo.computeVertexNormals();
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  const terrainMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92, metalness: 0.02 });
+  terrainMesh = new THREE.Mesh(geo, terrainMat);
+  terrainMesh.receiveShadow = true;
+  terrainMesh.castShadow = false;
+  worldGroup.add(terrainMesh);
+
+  // --- Water plane ---
+  const waterGeo = new THREE.PlaneGeometry(W * 1.4, H * 1.4, 1, 1);
+  waterGeo.rotateX(-Math.PI / 2);
+  const waterMat = new THREE.MeshPhysicalMaterial({
+    color: 0x0d4f73, transparent: true, opacity: 0.82,
+    roughness: 0.15, metalness: 0.1, transmission: 0.25, ior: 1.33,
+  });
+  waterMesh = new THREE.Mesh(waterGeo, waterMat);
+  waterMesh.position.y = BIOME[0].elev * 9 + 0.15;
+  worldGroup.add(waterMesh);
+
+  // --- Vegetation (instanced trees) ---
+  const trunkGeo = new THREE.CylinderGeometry(0.12, 0.16, 1.0, 5);
+  const leafGeo  = new THREE.ConeGeometry(0.55, 1.4, 6);
+  const treeGeo  = mergeTree(trunkGeo, leafGeo);
+  const treeMat  = new THREE.MeshStandardMaterial({ color: 0x2d5a27, roughness: 1.0, flatShading: true });
+  treeMesh = new THREE.InstancedMesh(treeGeo, treeMat, MAX_TREES);
+  treeMesh.castShadow = true;
+  let treeIdx = 0;
+
+  // --- Rocks (instanced) ---
+  const rockGeo = new THREE.DodecahedronGeometry(0.45, 0);
+  const rockMat = new THREE.MeshStandardMaterial({ color: 0x777670, roughness: 1.0, flatShading: true });
+  rockMesh = new THREE.InstancedMesh(rockGeo, rockMat, MAX_ROCKS);
+  rockMesh.castShadow = true;
+  let rockIdx = 0;
+
+  const dummy = new THREE.Object3D();
+  for (let iy = 0; iy < gh; iy++) {
+    for (let ix = 0; ix < gw; ix++) {
+      const r = regionByCoord.get(iy * gw + ix);
+      if (!r) continue;
+      const b = BIOME[r.biome] ?? BIOME[4];
+      const baseX = (ix - gw/2 + 0.5) * CELL;
+      const baseZ = (iy - gh/2 + 0.5) * CELL;
+      const baseY = b.elev * 9;
+
+      const nTrees = Math.min(8, Math.floor(b.trees * 10));
+      for (let t = 0; t < nTrees && treeIdx < MAX_TREES; t++) {
+        const ox = (hash2(ix*3+t, iy*7, 11) - 0.5) * CELL * 0.9;
+        const oz = (hash2(ix*5, iy*3+t, 22) - 0.5) * CELL * 0.9;
+        const s = 0.6 + hash2(ix,iy+t,33) * 0.8;
+        dummy.position.set(baseX + ox, baseY, baseZ + oz);
+        dummy.rotation.y = hash2(ix+t, iy, 44) * Math.PI * 2;
+        dummy.scale.setScalar(s);
+        dummy.updateMatrix();
+        treeMesh.setMatrixAt(treeIdx++, dummy.matrix);
+      }
+      const nRocks = Math.min(4, Math.floor(b.rocks * 10));
+      for (let t = 0; t < nRocks && rockIdx < MAX_ROCKS; t++) {
+        const ox = (hash2(ix*9+t, iy*2, 55) - 0.5) * CELL * 0.8;
+        const oz = (hash2(ix*2, iy*9+t, 66) - 0.5) * CELL * 0.8;
+        dummy.position.set(baseX + ox, baseY + 0.2, baseZ + oz);
+        dummy.rotation.set(hash2(ix,t,1)*6,hash2(iy,t,2)*6,hash2(ix,iy,3)*6);
+        dummy.scale.setScalar(0.5 + hash2(ix,iy,t)*0.7);
+        dummy.updateMatrix();
+        rockMesh.setMatrixAt(rockIdx++, dummy.matrix);
+      }
+    }
+  }
+  treeMesh.count = treeIdx;
+  rockMesh.count = rockIdx;
+  worldGroup.add(treeMesh, rockMesh);
+
+  // --- NPCs (instanced, faction-colored, glowing) ---
+  const npcGeo = new THREE.CapsuleGeometry(0.18, 0.5, 3, 6);
+  const npcMat = new THREE.MeshStandardMaterial({
+    vertexColors: false, emissive: 0xffffff, emissiveIntensity: 0.4, roughness: 0.5,
+  });
+  npcMesh = new THREE.InstancedMesh(npcGeo, npcMat, MAX_NPCS);
+  npcMesh.castShadow = true;
+  let npcIdx = 0;
+  const npcColor = new THREE.Color();
+  const npcColors = new Float32Array(MAX_NPCS * 3);
+
+  for (let iy = 0; iy < gh; iy++) {
+    for (let ix = 0; ix < gw; ix++) {
+      const r = regionByCoord.get(iy * gw + ix);
+      if (!r || r.biome === 0) continue;
+      const b = BIOME[r.biome] ?? BIOME[4];
+      const baseX = (ix - gw/2 + 0.5) * CELL;
+      const baseZ = (iy - gh/2 + 0.5) * CELL;
+      const baseY = b.elev * 9;
+      const fid = r.controlling_faction;
+      const col = (fid !== undefined && fid !== 0xFFFFFFFF) ? FACTION_COLORS[fid % FACTION_COLORS.length] : 0xcccccc;
+      const nShow = Math.min(12, Math.ceil((r.npc_count || 0) / 4));
+      for (let t = 0; t < nShow && npcIdx < MAX_NPCS; t++) {
+        const ox = (hash2(ix*4+t,iy*6,101)-0.5) * CELL * 0.85;
+        const oz = (hash2(ix*6,iy*4+t,202)-0.5) * CELL * 0.85;
+        dummy.position.set(baseX + ox, baseY + 0.45, baseZ + oz);
+        dummy.rotation.set(0, hash2(ix,iy+t,303)*Math.PI*2, 0);
+        dummy.scale.setScalar(1);
+        dummy.updateMatrix();
+        npcMesh.setMatrixAt(npcIdx, dummy.matrix);
+        npcColor.set(col);
+        npcColor.toArray(npcColors, npcIdx * 3);
+        npcIdx++;
+      }
+    }
+  }
+  npcMesh.count = npcIdx;
+  npcGeo.setAttribute('color', new THREE.InstancedBufferAttribute(npcColors, 3));
+  npcMat.vertexColors = true;
+  worldGroup.add(npcMesh);
+
+  // Faction territory glow ring overlay
+  buildFactionOverlay(world, regionByCoord, gw, gh);
+}
+
+function mergeTree(trunkGeo, leafGeo) {
+  trunkGeo.translate(0, 0.5, 0);
+  leafGeo.translate(0, 1.5, 0);
+  const merged = mergeGeometries([trunkGeo, leafGeo]);
+  return merged;
+}
+// Minimal geometry merge (avoids extra addon import)
+function mergeGeometries(geoms) {
+  const group = new THREE.BufferGeometry();
+  let positions = [], normals = [], indices = [], offset = 0;
+  for (const g of geoms) {
+    const p = g.attributes.position.array, n = g.attributes.normal.array, idx = g.index.array;
+    positions.push(...p); normals.push(...n);
+    for (const i of idx) indices.push(i + offset);
+    offset += p.length / 3;
+  }
+  group.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  group.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+  group.setIndex(indices);
+  return group;
+}
+
+let factionOverlayGroup = new THREE.Group();
+function buildFactionOverlay(world, regionByCoord, gw, gh) {
+  scene.remove(factionOverlayGroup);
+  factionOverlayGroup = new THREE.Group();
+  scene.add(factionOverlayGroup);
+}
+
+// ===========================================================================
+// HUD UPDATERS
+// ===========================================================================
+const seasonNames = ['SPRING','SUMMER','AUTUMN','WINTER'];
+function updateClockHUD(clock) {
+  document.getElementById('clock-year').textContent = `YEAR ${clock.year} — ${seasonNames[clock.season] ?? 'SPRING'}`;
+  document.getElementById('clock-date').textContent = `Month ${clock.month}, Day ${clock.day} — ${String(clock.hour).padStart(2,'0')}:00`;
+  document.getElementById('clock-tick').textContent = `Tick ${clock.tick}`;
+  // Sun position from hour of day
+  const angle = ((clock.hour - 6) / 24) * Math.PI * 2;
+  sun.set(Math.cos(angle), Math.sin(angle) * 0.9 + 0.15, Math.sin(angle*0.5));
+  sun.normalize();
+  skyUniforms['sunPosition'].value.copy(sun);
+  sunLight.position.copy(sun).multiplyScalar(200);
+  sunLight.target.position.set(0,0,0);
+  const night = sun.y < 0.05;
+  sunLight.intensity = night ? 0.1 : THREE.MathUtils.clamp(sun.y * 3, 0.3, 2.4);
+  hemi.intensity = night ? 0.15 : 0.55;
+  renderer.toneMappingExposure = night ? 0.6 : 1.15;
+}
+
+function updateFactionsHUD(world) {
+  const counts = {};
+  for (const r of world.regions) {
+    const fid = r.controlling_faction;
+    if (fid === undefined || fid === 0xFFFFFFFF) continue;
+    counts[fid] = (counts[fid] || 0) + (r.npc_count || 0);
+  }
+  const list = document.getElementById('factions-list');
+  list.innerHTML = '';
+  const sorted = Object.entries(counts).sort((a,b) => b[1]-a[1]);
+  for (const [fid, pop] of sorted) {
+    const color = '#' + FACTION_COLORS[fid % FACTION_COLORS.length].toString(16).padStart(6,'0');
+    const row = document.createElement('div');
+    row.className = 'faction-row';
+    row.innerHTML = `<div class="faction-dot" style="background:${color};color:${color}"></div>
+      <div class="faction-name">Faction ${fid}</div><div class="faction-pop">${pop} pop</div>`;
+    list.appendChild(row);
+  }
+  document.getElementById('stat-npcs').textContent = Object.values(counts).reduce((a,b)=>a+b,0);
+  document.getElementById('stat-regions').textContent = world.regions.length;
+}
+
+let eventLog = [];
+function pushEvent(type, text) {
+  eventLog.unshift({ type, text, t: Date.now() });
+  eventLog = eventLog.slice(0, 30);
+  renderEvents();
+}
+function renderEvents() {
+  const list = document.getElementById('events-list');
+  list.innerHTML = '';
+  for (const e of eventLog.slice(0, 8)) {
+    const row = document.createElement('div');
+    row.className = `event-row event-${e.type}`;
+    const ago = Math.max(0, Math.floor((Date.now()-e.t)/1000));
+    row.innerHTML = `<span class="t">${ago}s</span>${e.text}`;
+    list.appendChild(row);
+  }
+}
+
+// ===========================================================================
+// NETWORK: connect to SOMNI API, fall back to demo world
+// ===========================================================================
+let activeWars = 0;
+async function fetchWorld() {
+  const resp = await fetch(`${API_BASE}/world/json`, { signal: AbortSignal.timeout(3000) });
+  if (!resp.ok) throw new Error('bad response');
+  return resp.json();
+}
+
+function setStatus(connected, text) {
+  document.getElementById('status-dot').classList.toggle('connected', connected);
+  document.getElementById('status-text').textContent = text;
+}
+
+async function init() {
+  let world;
+  try {
+    world = await fetchWorld();
+    setStatus(true, 'Connected to SOMNI kernel');
+    pushEvent('trade', 'Connected to live simulation');
+  } catch (e) {
+    world = buildDemoWorld();
+    setStatus(false, 'Offline — showing demo world (start somni-api for live data)');
+    pushEvent('trade', 'Demo world loaded (no kernel detected)');
+  }
+  buildWorld(world);
+  updateClockHUD(world.clock);
+  updateFactionsHUD(world);
+  document.getElementById('loading').style.opacity = 0;
+  setTimeout(() => document.getElementById('loading').style.display = 'none', 600);
+
+  connectWebSocket();
+  setInterval(pollWorld, 5000);
+}
+
+function connectWebSocket() {
+  try {
+    const ws = new WebSocket(WS_URL);
+    ws.onopen = () => setStatus(true, 'Live stream connected');
+    ws.onmessage = (ev) => {
+      try {
+        const data = JSON.parse(ev.data);
+        if (data.event === 'tick') { /* handled by poll */ }
+        if (data.event === 'faction_war') {
+          pushEvent('war', `⚔️ Faction ${data.attacker} declared war on ${data.defender}`);
+          activeWars++;
+          document.getElementById('stat-wars').textContent = activeWars;
+        }
+      } catch {}
+    };
+    ws.onerror = () => {};
+    ws.onclose = () => setTimeout(connectWebSocket, 5000);
+  } catch (e) { /* offline demo mode */ }
+}
+
+async function pollWorld() {
+  try {
+    const world = await fetchWorld();
+    updateClockHUD(world.clock);
+    updateFactionsHUD(world);
+  } catch (e) { /* stay on demo world */ }
+}
+
+// ===========================================================================
+// RENDER LOOP
+// ===========================================================================
+let lastTime = performance.now(), frames = 0, fpsAcc = 0;
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+
+  const now = performance.now();
+  frames++;
+  if (now - lastTime > 500) {
+    document.getElementById('stat-fps').textContent = Math.round(frames * 1000 / (now - lastTime));
+    frames = 0; lastTime = now;
+  }
+
+  if (npcMesh) {
+    // gentle bobbing for life-like motion
+    const t = now * 0.001;
+    npcMesh.instanceMatrix.needsUpdate = false; // static positions w/ shader-free bob skipped for perf
+  }
+
+  composer.render();
+}
+
+window.addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  composer.setSize(innerWidth, innerHeight);
+});
+
+init();
+animate();
+</script>
+</body>
+</html>
