@@ -46,9 +46,10 @@ NPCSystem::NPCSystem(WorldState& world, WorldMap& map, FactionRegistry& factions
                      EventBus& bus, uint64_t world_seed)
     : world_(world), map_(map), factions_(factions), bus_(bus), world_seed_(world_seed) {}
 
-void NPCSystem::initialize(BT::BehaviorTreeFactory& bt_factory) {
-    bt_factory_ = std::move(bt_factory);
+void NPCSystem::initialize() {
+    SomniTreeFactory::register_nodes(bt_factory_);
     default_tree_xml_ = SomniTreeFactory::default_npc_tree_xml();
+    bt_factory_.registerBehaviorTreeFromText(default_tree_xml_);
     spdlog::info("NPCSystem initialized with BT factory");
 }
 

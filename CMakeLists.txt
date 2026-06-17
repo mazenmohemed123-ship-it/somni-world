@@ -7,6 +7,15 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(SOMNI_BUILD_BINDINGS "Build Python pybind11 bindings" ON)
 option(SOMNI_BUILD_TESTS    "Build Catch2 test suite"        ON)
+option(SOMNI_SANITIZE       "Build with AddressSanitizer + UBSan (opt-in)" OFF)
+
+# Sanitizers must be applied to compile AND link of every target uniformly,
+# otherwise executables that link the kernel fail to resolve the sanitizer
+# runtime symbols. Apply them project-wide here when explicitly requested.
+if(SOMNI_SANITIZE AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
+    add_link_options(-fsanitize=address,undefined)
+endif()
 
 # ---------------------------------------------------------------------------
 # Dependencies — pulled at configure time via FetchContent
@@ -57,8 +66,11 @@ set(BTCPP_BUILD_TOOLS        OFF CACHE BOOL "" FORCE)
 set(BTCPP_GROOT_INTERFACE    OFF CACHE BOOL "" FORCE)
 set(BTCPP_SQLITE_LOGGING     OFF CACHE BOOL "" FORCE)
 set(BTCPP_MANUAL_SELECTOR    OFF CACHE BOOL "" FORCE)
+set(BTCPP_UNIT_TESTS         OFF CACHE BOOL "" FORCE)
+set(BTCPP_EXAMPLES           OFF CACHE BOOL "" FORCE)
 set(BUILD_TESTING            OFF CACHE BOOL "" FORCE)
 set(FASTNOISE2_NOISETOOL     OFF CACHE BOOL "" FORCE)
+set(FASTNOISE2_TESTS         OFF CACHE BOOL "" FORCE)
 
 FetchContent_MakeAvailable(entt behaviortree_cpp fastnoise2 nlohmann_json spdlog)
 if(SOMNI_BUILD_TESTS)

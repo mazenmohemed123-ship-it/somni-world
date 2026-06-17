@@ -1,14 +1,9 @@
 #include <somni/core/EventBus.hpp>
 
-namespace somni {
+// EventBus is fully defined inline in the header (template subscribe/emit plus
+// inline unsubscribe/clear). This translation unit exists to anchor the header
+// in the build and as a home for any future non-inline additions.
 
-void EventBus::unsubscribe(HandlerID id) {
-    std::lock_guard<std::mutex> lk(mtx_);
-    for (auto& [type, vec] : handlers_) {
-        auto it = std::remove_if(vec.begin(), vec.end(),
-                                 [id](const auto& p) { return p.first == id; });
-        vec.erase(it, vec.end());
-    }
-}
+namespace somni {
 
 }  // namespace somni

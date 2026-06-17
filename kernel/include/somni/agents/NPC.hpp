@@ -4,6 +4,7 @@
 #include <somni/agents/StateMachine.hpp>
 #include <somni/agents/BehaviorTree.hpp>
 #include <somni/world/Resources.hpp>
+#include <somni/core/EventBus.hpp>   // NPCDiedEvent::Cause used in kill()
 #include <entt/entt.hpp>
 #include <cstdint>
 
@@ -12,7 +13,6 @@ namespace somni {
 class WorldState;
 class WorldMap;
 class FactionRegistry;
-class EventBus;
 
 // ---------------------------------------------------------------------------
 // Social role — determines which BT subtree is used for "work"
@@ -87,7 +87,10 @@ public:
               EventBus& bus, uint64_t world_seed);
 
     // Must be called once after world is built
-    void initialize(BT::BehaviorTreeFactory& bt_factory);
+    // Build the BT factory in-place. Never pass a pre-built factory: BT.CPP
+    // stores a back-reference to the factory object inside its XMLParser, so
+    // any move/copy of the factory corrupts that reference.
+    void initialize();
 
     // Per-tick update
     void tick(entt::registry& reg, uint64_t current_tick);
@@ -116,6 +119,10 @@ private:
     EventBus&         bus_;
     uint64_t          world_seed_;
 
+    // BT::XMLParser stores a const-reference back to this factory object; the
+    // factory must never be moved or copied after construction. NPCSystem is
+    // heap-allocated (via unique_ptr in SimulationKernel), so this member is
+    // at a stable address for its lifetime.
     BT::BehaviorTreeFactory bt_factory_;
     std::string             default_tree_xml_;
 

@@ -1,4 +1,5 @@
 #include <somni/agents/BehaviorTree.hpp>
+#include <somni/agents/NPC.hpp>          // PositionComponent, CombatComponent, SocialRole, ...
 #include <somni/core/WorldState.hpp>
 #include <somni/world/WorldMap.hpp>
 #include <somni/world/Resources.hpp>
@@ -12,8 +13,10 @@ namespace somni {
 // ---------------------------------------------------------------------------
 // Helper: retrieve NPCBlackboard from BT::TreeNode config
 // ---------------------------------------------------------------------------
-static NPCBlackboard* get_ctx(BT::TreeNode* node) {
-    auto bb = node->config().blackboard;
+// Takes the blackboard directly: BT::TreeNode::config() is protected, so it
+// must be accessed from within each node's own member function (via config())
+// and the blackboard handed to this helper.
+static NPCBlackboard* get_ctx(const BT::Blackboard::Ptr& bb) {
     if (!bb) return nullptr;
     auto* ptr = bb->getAny("_ctx");
     if (!ptr) return nullptr;
@@ -25,7 +28,7 @@ static NPCBlackboard* get_ctx(BT::TreeNode* node) {
 // ---------------------------------------------------------------------------
 
 BT::NodeStatus IsHungry::tick() {
-    auto* ctx = get_ctx(this);
+    auto* ctx = get_ctx(config().blackboard);
     if (!ctx) return BT::NodeStatus::FAILURE;
     float threshold = 0.25f;
     getInput("threshold", threshold);
@@ -33,7 +36,7 @@ BT::NodeStatus IsHungry::tick() {
 }
 
 BT::NodeStatus IsThirsty::tick() {
-    auto* ctx = get_ctx(this);
+    auto* ctx = get_ctx(config().blackboard);
     if (!ctx) return BT::NodeStatus::FAILURE;
     float threshold = 0.15f;
     getInput("threshold", threshold);
@@ -41,7 +44,7 @@ BT::NodeStatus IsThirsty::tick() {
 }
 
 BT::NodeStatus IsUnsafe::tick() {
-    auto* ctx = get_ctx(this);
+    auto* ctx = get_ctx(config().blackboard);
     if (!ctx) return BT::NodeStatus::FAILURE;
     float threshold = 0.30f;
     getInput("threshold", threshold);
@@ -49,7 +52,7 @@ BT::NodeStatus IsUnsafe::tick() {
 }
 
 BT::NodeStatus IsTired::tick() {
-    auto* ctx = get_ctx(this);
+    auto* ctx = get_ctx(config().blackboard);
     if (!ctx) return BT::NodeStatus::FAILURE;
     float threshold = 0.15f;
     getInput("threshold", threshold);
@@ -57,7 +60,7 @@ BT::NodeStatus IsTired::tick() {
 }
 
 BT::NodeStatus HasResourceInInventory::tick() {
-    auto* ctx = get_ctx(this);
+    auto* ctx = get_ctx(config().blackboard);
     if (!ctx || !ctx->registry) return BT::NodeStatus::FAILURE;
     if (!ctx->registry->valid(ctx->entity)) return BT::NodeStatus::FAILURE;
 
@@ -73,7 +76,7 @@ BT::NodeStatus HasResourceInInventory::tick() {
 }
 
 BT::NodeStatus EnemyNearby::tick() {
-    auto* ctx = get_ctx(this);
+    auto* ctx = get_ctx(config().blackboard);
     if (!ctx) return BT::NodeStatus::FAILURE;
     return ctx->enemy_in_range ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }
@@ -83,7 +86,7 @@ BT::NodeStatus EnemyNearby::tick() {
 // ---------------------------------------------------------------------------
 
 BT::NodeStatus MoveToTarget::onStart() {
-    auto* ctx = get_ctx(this);
+    auto* ctx = get_ctx(config().blackboard);
     if (!ctx) return BT::NodeStatus::FAILURE;
     getInput("target_x", ctx->target_x);
     getInput("target_y", ctx->target_y);
@@ -92,7 +95,7 @@ BT::NodeStatus MoveToTarget::onStart() {
 }
 
 BT::NodeStatus MoveToTarget::onRunning() {
-    auto* ctx = get_ctx(this);
+    auto* ctx = get_ctx(config().blackboard);
     if (!ctx || !ctx->registry || !ctx->map) return BT::NodeStatus::FAILURE;
     if (!ctx->registry->valid(ctx->entity)) return BT::NodeStatus::FAILURE;
 
@@ -113,7 +116,7 @@ BT::NodeStatus MoveToTarget::onRunning() {
 }
 
 BT::NodeStatus GatherResource::tick() {
-    auto* ctx = get_ctx(this);
+    auto* ctx = get_ctx(config().blackboard);
     if (!ctx || !ctx->world || !ctx->registry) return BT::NodeStatus::FAILURE;
     if (!ctx->registry->valid(ctx->entity)) return BT::NodeStatus::FAILURE;
 
@@ -151,7 +154,7 @@ BT::NodeStatus GatherResource::tick() {
 }
 
 BT::NodeStatus ConsumeFood::tick() {
-    auto* ctx = get_ctx(this);
+    auto* ctx = get_ctx(config().blackboard);
     if (!ctx || !ctx->registry) return BT::NodeStatus::FAILURE;
     if (!ctx->registry->valid(ctx->entity)) return BT::NodeStatus::FAILURE;
 
@@ -170,7 +173,7 @@ BT::NodeStatus ConsumeFood::tick() {
 }
 
 BT::NodeStatus ConsumeWater::tick() {
-    auto* ctx = get_ctx(this);
+    auto* ctx = get_ctx(config().blackboard);
     if (!ctx || !ctx->registry) return BT::NodeStatus::FAILURE;
     if (!ctx->registry->valid(ctx->entity)) return BT::NodeStatus::FAILURE;
 
@@ -199,7 +202,7 @@ BT::NodeStatus ConsumeWater::tick() {
 }
 
 BT::NodeStatus RecallResourceLocation::tick() {
-    auto* ctx = get_ctx(this);
+    auto* ctx = get_ctx(config().blackboard);
     if (!ctx || !ctx->registry) return BT::NodeStatus::FAILURE;
     if (!ctx->registry->valid(ctx->entity)) return BT::NodeStatus::FAILURE;
 
@@ -221,13 +224,13 @@ BT::NodeStatus RecallResourceLocation::tick() {
 }
 
 BT::NodeStatus FleeFromThreat::onStart() {
-    auto* ctx = get_ctx(this);
+    auto* ctx = get_ctx(config().blackboard);
     if (!ctx) return BT::NodeStatus::FAILURE;
     return BT::NodeStatus::RUNNING;
 }
 
 BT::NodeStatus FleeFromThreat::onRunning() {
-    auto* ctx = get_ctx(this);
+    auto* ctx = get_ctx(config().blackboard);
     if (!ctx || !ctx->registry || !ctx->map) return BT::NodeStatus::FAILURE;
     if (!ctx->registry->valid(ctx->entity)) return BT::NodeStatus::FAILURE;
 
@@ -258,7 +261,7 @@ BT::NodeStatus FleeFromThreat::onRunning() {
 }
 
 BT::NodeStatus AttackEnemy::tick() {
-    auto* ctx = get_ctx(this);
+    auto* ctx = get_ctx(config().blackboard);
     if (!ctx || !ctx->registry) return BT::NodeStatus::FAILURE;
     if (!ctx->registry->valid(ctx->entity)) return BT::NodeStatus::FAILURE;
     if (!ctx->registry->valid(ctx->enemy_entity)) return BT::NodeStatus::FAILURE;
@@ -283,7 +286,7 @@ BT::NodeStatus AttackEnemy::tick() {
 }
 
 BT::NodeStatus PerformRoleDuty::tick() {
-    auto* ctx = get_ctx(this);
+    auto* ctx = get_ctx(config().blackboard);
     if (!ctx || !ctx->registry || !ctx->world) return BT::NodeStatus::FAILURE;
     if (!ctx->registry->valid(ctx->entity)) return BT::NodeStatus::FAILURE;
 
@@ -328,7 +331,7 @@ BT::NodeStatus PerformRoleDuty::tick() {
 }
 
 BT::NodeStatus Sleep::tick() {
-    auto* ctx = get_ctx(this);
+    auto* ctx = get_ctx(config().blackboard);
     if (!ctx || !ctx->registry) return BT::NodeStatus::FAILURE;
     if (!ctx->registry->valid(ctx->entity)) return BT::NodeStatus::FAILURE;
 
@@ -344,7 +347,7 @@ BT::NodeStatus Sleep::tick() {
 }
 
 BT::NodeStatus IdleWander::tick() {
-    auto* ctx = get_ctx(this);
+    auto* ctx = get_ctx(config().blackboard);
     if (!ctx || !ctx->registry || !ctx->world) return BT::NodeStatus::FAILURE;
     if (!ctx->registry->valid(ctx->entity)) return BT::NodeStatus::FAILURE;
 
@@ -391,7 +394,7 @@ void SomniTreeFactory::register_nodes(BT::BehaviorTreeFactory& factory) {
     factory.registerNodeType<FleeFromThreat>("FleeFromThreat");
     factory.registerNodeType<AttackEnemy>("AttackEnemy");
     factory.registerNodeType<PerformRoleDuty>("PerformRoleDuty");
-    factory.registerNodeType<Sleep>("Sleep");
+    factory.registerNodeType<Sleep>("NPCSleep");
     factory.registerNodeType<IdleWander>("IdleWander");
 }
 
@@ -406,24 +409,24 @@ std::string SomniTreeFactory::default_npc_tree_xml() {
     return R"(
 <root BTCPP_format="4">
   <BehaviorTree ID="NPCDefault">
-    <Selector>
+    <Fallback>
 
       <!-- SAFETY: flee or fight if threatened -->
       <Sequence>
         <IsUnsafe threshold="0.30"/>
-        <Selector>
+        <Fallback>
           <Sequence>
             <EnemyNearby radius="6.0"/>
             <AttackEnemy/>
           </Sequence>
           <FleeFromThreat/>
-        </Selector>
+        </Fallback>
       </Sequence>
 
       <!-- THIRST: drink water -->
       <Sequence>
         <IsThirsty threshold="0.15"/>
-        <Selector>
+        <Fallback>
           <ConsumeWater/>
           <Sequence>
             <RecallResourceLocation resource_type="3" out_x="{recall_x}" out_y="{recall_y}"/>
@@ -431,13 +434,13 @@ std::string SomniTreeFactory::default_npc_tree_xml() {
             <GatherResource resource_type="3" amount="2.0"/>
             <ConsumeWater/>
           </Sequence>
-        </Selector>
+        </Fallback>
       </Sequence>
 
       <!-- HUNGER: eat food -->
       <Sequence>
         <IsHungry threshold="0.25"/>
-        <Selector>
+        <Fallback>
           <ConsumeFood/>
           <Sequence>
             <RecallResourceLocation resource_type="0" out_x="{recall_x}" out_y="{recall_y}"/>
@@ -449,13 +452,13 @@ std::string SomniTreeFactory::default_npc_tree_xml() {
             <GatherResource resource_type="0" amount="2.0"/>
             <ConsumeFood/>
           </Sequence>
-        </Selector>
+        </Fallback>
       </Sequence>
 
       <!-- REST: sleep if tired or night -->
       <Sequence>
         <IsTired threshold="0.15"/>
-        <Sleep regen_rate="0.02"/>
+        <NPCSleep regen_rate="0.02"/>
       </Sequence>
 
       <!-- WORK: perform social role duty -->
@@ -464,7 +467,7 @@ std::string SomniTreeFactory::default_npc_tree_xml() {
       <!-- DEFAULT: idle wander -->
       <IdleWander/>
 
-    </Selector>
+    </Fallback>
   </BehaviorTree>
 </root>
 )";

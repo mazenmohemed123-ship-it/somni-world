@@ -41,7 +41,9 @@ struct TerrainCell {
 // In-world calendar and clock
 // ---------------------------------------------------------------------------
 struct WorldClock {
-    uint64_t tick{0};           // absolute simulation tick
+    // tick is the single source of truth; all calendar fields are derived
+    // from it in advance(). Start at tick = 6h so hour{6} is consistent.
+    uint64_t tick{6 * 60};     // absolute simulation tick (offset = 6 * TICKS_PER_HOUR)
     uint32_t year{1};
     uint8_t  season{0};        // 0=spring, 1=summer, 2=autumn, 3=winter
     uint8_t  month{1};         // 1–12

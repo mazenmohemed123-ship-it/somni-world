@@ -63,8 +63,7 @@ void SimulationKernel::bootstrap(const WorldBootstrap& spec) {
     npc_system_ = std::make_unique<NPCSystem>(
         *world_, *map_, *faction_registry_, bus_, spec.world_config.seed);
 
-    BT::BehaviorTreeFactory bt_factory = SomniTreeFactory::build();
-    npc_system_->initialize(bt_factory);
+    npc_system_->initialize();  // builds BT factory in-place (avoids move/copy)
 
     // STEP 4c: Spawn initial population
     spawn_initial_population(spec);

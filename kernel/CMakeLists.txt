@@ -39,9 +39,13 @@ target_compile_options(somni_kernel PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang>:
         -Wall -Wextra -Wpedantic
         $<$<CONFIG:Release>:-O3 -march=native -DNDEBUG>
-        $<$<CONFIG:Debug>:-g3 -fsanitize=address,undefined>
+        $<$<CONFIG:Debug>:-g3>
     >
 )
+# NOTE: sanitizers (ASan/UBSan) are opt-in via SOMNI_SANITIZE in the root
+# CMakeLists and applied globally to BOTH compile and link of every target.
+# Applying -fsanitize to only this library's compile step left the test and
+# binding executables unable to resolve the __asan_*/__ubsan_* runtime symbols.
 
 target_compile_definitions(somni_kernel PUBLIC
     SOMNI_VERSION_MAJOR=0

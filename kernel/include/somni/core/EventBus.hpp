@@ -1,8 +1,10 @@
 #pragma once
+#include <algorithm>
 #include <cstdint>
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <string>
 #include <typeindex>
 #include <unordered_map>
 #include <vector>
@@ -12,9 +14,11 @@ namespace somni {
 // ---------------------------------------------------------------------------
 // Base event — all domain events inherit from this
 // ---------------------------------------------------------------------------
-struct Event {
-    virtual ~Event() = default;
-};
+// Tag base. Intentionally trivial / no virtual members: events are always
+// dispatched by their exact static type (type_index + static_cast), never
+// stored or deleted polymorphically. Keeping this an empty aggregate base
+// lets every derived event use brace-initialization, e.g. TickEvent{42, 0.0}.
+struct Event {};
 
 // ---------------------------------------------------------------------------
 // Type-safe, thread-safe event bus

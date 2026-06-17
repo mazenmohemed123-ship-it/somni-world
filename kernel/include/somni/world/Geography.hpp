@@ -67,7 +67,7 @@ public:
 
 private:
     static Biome   dominant_biome(const WorldState& w, int32_t gx, int32_t gy);
-    static void    assign_resources(RegionState& r, Biome biome, uint64_t seed);
+    static void    assign_resources(RegionState& r, Biome biome, uint64_t seed, uint32_t rid);
 };
 
 }  // namespace somni

@@ -21,11 +21,11 @@ TEST_CASE("EventBus emits and receives events", "[eventbus]") {
         REQUIRE(e.tick == 42);
     });
 
-    bus.emit(TickEvent{42, 0.0});
+    bus.emit(TickEvent{{}, 42, 0.0});
     REQUIRE(count == 1);
 
     bus.unsubscribe(id);
-    bus.emit(TickEvent{43, 0.0});
+    bus.emit(TickEvent{{}, 43, 0.0});
     REQUIRE(count == 1);  // handler removed
 }
 
@@ -36,9 +36,9 @@ TEST_CASE("EventBus multiple event types", "[eventbus]") {
     bus.subscribe<TickEvent>([&](const TickEvent&)    { ++tick_count; });
     bus.subscribe<NPCDiedEvent>([&](const NPCDiedEvent&) { ++npc_count; });
 
-    bus.emit(TickEvent{1, 0.0});
-    bus.emit(TickEvent{2, 0.0});
-    bus.emit(NPCDiedEvent{99, NPCDiedEvent::STARVATION, 0});
+    bus.emit(TickEvent{{}, 1, 0.0});
+    bus.emit(TickEvent{{}, 2, 0.0});
+    bus.emit(NPCDiedEvent{{}, 99, NPCDiedEvent::STARVATION, 0});
 
     REQUIRE(tick_count == 2);
     REQUIRE(npc_count  == 1);

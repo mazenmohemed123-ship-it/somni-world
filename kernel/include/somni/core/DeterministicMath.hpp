@@ -15,9 +15,11 @@ struct Fixed32 {
 
     static constexpr int32_t  FRAC_BITS = 16;
     static constexpr int32_t  SCALE     = 1 << FRAC_BITS;   // 65536
-    static constexpr Fixed32  ZERO      = Fixed32::from_raw(0);
-    static constexpr Fixed32  ONE       = Fixed32::from_raw(SCALE);
-    static constexpr Fixed32  HALF      = Fixed32::from_raw(SCALE / 2);
+    // Defined out-of-line below (Fixed32 is incomplete here, so cannot
+    // initialize members of its own type in-class).
+    static const Fixed32 ZERO;
+    static const Fixed32 ONE;
+    static const Fixed32 HALF;
 
     // Constructors
     constexpr Fixed32() noexcept = default;
@@ -88,6 +90,12 @@ struct Fixed32 {
         return a + (b - a) * t;
     }
 };
+
+// Out-of-line definitions of the named constants (Fixed32 is now complete).
+// inline => single definition across all translation units (C++17).
+inline const Fixed32 Fixed32::ZERO = Fixed32::from_raw(0);
+inline const Fixed32 Fixed32::ONE  = Fixed32::from_raw(Fixed32::SCALE);
+inline const Fixed32 Fixed32::HALF = Fixed32::from_raw(Fixed32::SCALE / 2);
 
 // Scalar operations
 inline Fixed32 operator*(int32_t s, Fixed32 f) noexcept {

@@ -148,7 +148,7 @@ public:
     static BT::PortsList providedPorts() {
         return {
             BT::InputPort<int>("resource_type"),
-            BT::InputPort<float>("amount", 1.0f),
+            BT::InputPort<float>("amount", 1.0f, "units to gather"),
         };
     }
 };
@@ -240,7 +240,6 @@ public:
     // Build a variant tree for a given social role
     static std::string role_tree_xml(uint8_t social_role);
 
-private:
     static void register_nodes(BT::BehaviorTreeFactory& factory);
 };
 
