@@ -397,8 +397,11 @@ async function createWorld(p) {
 searchEl.addEventListener("input", e => { query = e.target.value.trim().toLowerCase(); render(); });
 
 (async function init() {
-  await checkServer();
-  await loadPresets();
+  // Show all 36 built-in worlds immediately — no server needed.
+  buildChips();
+  render();
+  // Then connect to server in background to get live data + enable launching.
+  checkServer().then(() => loadPresets());
   setInterval(checkServer, 5000);
 })();
 </script>
