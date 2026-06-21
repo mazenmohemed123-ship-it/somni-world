@@ -35,6 +35,7 @@ class SimulationRunner:
         self.headless      = headless
         self.verbose       = verbose
         self.kernel        = None
+        self.backend       = None   # "cpp" | "python", set in setup()
         self.sync_bridge   = StateSyncBridge()
         self._event_handlers: Dict[str, List[Callable]] = {}
 
@@ -46,32 +47,48 @@ class SimulationRunner:
         """
         STEPS 3–4: Generate world and initialize agents.
         Must be called before start().
-        """
-        import somni_core
 
+        Uses the compiled C++ kernel (somni_core) when available; otherwise
+        transparently falls back to the pure-Python backend so the project
+        runs with ZERO build steps (no CMake, no .pyd, no DLLs).
+        """
         os.makedirs(self.snapshot_dir, exist_ok=True)
 
-        cfg = somni_core.KernelConfig()
-        cfg.tick.ticks_per_second = self.tps
-        cfg.tick.headless         = self.headless
-        cfg.tick.time_scale       = self.spec.time_scale
-        cfg.snapshot_dir          = self.snapshot_dir
-        cfg.snapshot_interval_ticks = 5000
-        cfg.log_verbose           = self.verbose
+        try:
+            import somni_core
+            self.backend = "cpp"
+        except ImportError:
+            somni_core = None
+            self.backend = "python"
 
-        self.kernel = somni_core.SimulationKernel(cfg)
+        if somni_core is not None:
+            cfg = somni_core.KernelConfig()
+            cfg.tick.ticks_per_second = self.tps
+            cfg.tick.headless         = self.headless
+            cfg.tick.time_scale       = self.spec.time_scale
+            cfg.snapshot_dir          = self.snapshot_dir
+            cfg.snapshot_interval_ticks = 5000
+            cfg.log_verbose           = self.verbose
+            self.kernel = somni_core.SimulationKernel(cfg)
+            builder = WorldBuilder(self.spec)
+            builder.build_and_bootstrap(self.kernel)
+        else:
+            from ..pysim import PyKernel
+            log.warning(
+                "somni_core (C++ kernel) not found — using the pure-Python "
+                "backend. The world still simulates deterministically; build "
+                "the C++ kernel later for per-NPC behavior trees and scale.")
+            self.kernel = PyKernel(
+                self.spec, ticks_per_second=self.tps, headless=self.headless)
 
-        # Register event relay
+        # Register event relay (same surface on both backends).
         self.kernel.on_tick(self._on_tick)
         self.kernel.on_npc_died(self._on_npc_died)
         self.kernel.on_faction_war(self._on_faction_war)
         self.kernel.on_trade_completed(self._on_trade_completed)
 
-        # Bootstrap the world
-        builder = WorldBuilder(self.spec)
-        builder.build_and_bootstrap(self.kernel)
-
-        log.info("SimulationRunner ready — world=%s", self.spec.name)
+        log.info("SimulationRunner ready — world=%s backend=%s",
+                 self.spec.name, self.backend)
         return self
 
     def start(self) -> "SimulationRunner":
@@ -154,6 +171,9 @@ class SimulationRunner:
     # ------------------------------------------------------------------
 
     def add_resource(self, region_id: int, resource_type: int, amount: float) -> None:
+        if self.backend == "python":
+            self.kernel.add_resource(region_id, resource_type, amount)
+            return
         import somni_core
         cmd = somni_core.PlayerCommand()
         cmd.type    = somni_core.PlayerCommandType.ADD_RESOURCE
@@ -163,6 +183,9 @@ class SimulationRunner:
         self.kernel.player_command(cmd)
 
     def trigger_disaster(self, region_id: int, magnitude: float = 0.5) -> None:
+        if self.backend == "python":
+            self.kernel.trigger_disaster(region_id, magnitude)
+            return
         import somni_core
         cmd = somni_core.PlayerCommand()
         cmd.type    = somni_core.PlayerCommandType.TRIGGER_DISASTER

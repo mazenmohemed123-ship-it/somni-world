@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SOMNI — World Launcher</title>
+<style>
+  :root {
+    --bg:#0a0e16; --panel:rgba(20,26,38,.72); --line:rgba(120,150,200,.18);
+    --txt:#e8eef8; --dim:#8fa3bf; --accent:#5fa8ff; --accent2:#7dffc4;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body {
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    background:radial-gradient(1200px 800px at 70% -10%,#15233f 0,#0a0e16 60%);
+    color:var(--txt); min-height:100vh; padding:32px 20px 60px;
+  }
+  header { max-width:1100px; margin:0 auto 26px; }
+  .brand { display:flex; align-items:center; gap:14px; }
+  .logo {
+    width:46px; height:46px; border-radius:12px;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    display:grid; place-items:center; font-size:24px; font-weight:800; color:#06121f;
+  }
+  h1 { font-size:30px; letter-spacing:.5px; }
+  .sub { color:var(--dim); margin-top:4px; font-size:14px; }
+  #status {
+    display:inline-flex; align-items:center; gap:8px; margin-top:14px;
+    padding:6px 14px; border-radius:20px; background:var(--panel);
+    border:1px solid var(--line); font-size:13px;
+  }
+  .dot { width:9px; height:9px; border-radius:50%; background:#e0564f; }
+  #status.online .dot { background:var(--accent2); box-shadow:0 0 10px var(--accent2); }
+  .toolbar { max-width:1100px; margin:0 auto 22px; display:flex; gap:12px; flex-wrap:wrap; }
+  #search {
+    flex:1; min-width:240px; padding:14px 18px; font-size:16px; color:var(--txt);
+    background:var(--panel); border:1px solid var(--line); border-radius:12px; outline:none;
+  }
+  #search:focus { border-color:var(--accent); }
+  .chips { display:flex; gap:8px; flex-wrap:wrap; }
+  .chip {
+    padding:9px 14px; border-radius:20px; background:var(--panel);
+    border:1px solid var(--line); color:var(--dim); cursor:pointer; font-size:13px;
+    user-select:none; transition:.15s;
+  }
+  .chip:hover { color:var(--txt); }
+  .chip.active { background:var(--accent); color:#06121f; border-color:var(--accent); font-weight:600; }
+  .grid {
+    max-width:1100px; margin:0 auto;
+    display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:16px;
+  }
+  .card {
+    background:var(--panel); border:1px solid var(--line); border-radius:16px;
+    padding:20px; cursor:pointer; transition:.18s; position:relative; overflow:hidden;
+  }
+  .card:hover { transform:translateY(-3px); border-color:var(--accent); box-shadow:0 12px 30px rgba(0,0,0,.4); }
+  .card .icon { font-size:34px; }
+  .card h3 { margin:10px 0 6px; font-size:18px; }
+  .card p { color:var(--dim); font-size:13px; line-height:1.5; min-height:38px; }
+  .meta { display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; }
+  .tag {
+    font-size:11px; padding:3px 9px; border-radius:10px;
+    background:rgba(95,168,255,.12); color:var(--accent); border:1px solid rgba(95,168,255,.2);
+  }
+  .card .go {
+    margin-top:14px; padding:10px; text-align:center; border-radius:10px;
+    background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#06121f;
+    font-weight:700; font-size:13px;
+  }
+  .custom { border-style:dashed; }
+  .custom .go { background:rgba(125,255,196,.15); color:var(--accent2); border:1px solid rgba(125,255,196,.3); }
+  #empty { max-width:1100px; margin:40px auto; text-align:center; color:var(--dim); }
+  /* overlay */
+  #overlay {
+    position:fixed; inset:0; background:rgba(6,10,18,.85); backdrop-filter:blur(6px);
+    display:none; place-items:center; z-index:50;
+  }
+  #overlay.show { display:grid; }
+  .modal {
+    background:#101725; border:1px solid var(--line); border-radius:18px; padding:30px;
+    width:min(440px,92vw); text-align:center;
+  }
+  .spinner {
+    width:46px; height:46px; margin:0 auto 18px; border-radius:50%;
+    border:4px solid rgba(95,168,255,.2); border-top-color:var(--accent);
+    animation:spin 1s linear infinite;
+  }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .modal h2 { font-size:20px; margin-bottom:8px; }
+  .modal p { color:var(--dim); font-size:14px; line-height:1.6; }
+  .modal .err { color:#ff8a82; }
+  .modal button {
+    margin-top:18px; padding:11px 22px; border:none; border-radius:10px; cursor:pointer;
+    background:var(--accent); color:#06121f; font-weight:700; font-size:14px;
+  }
+  /* custom form */
+  .field { text-align:left; margin-top:14px; }
+  .field label { display:block; font-size:12px; color:var(--dim); margin-bottom:5px; }
+  .field input, .field select {
+    width:100%; padding:10px 12px; border-radius:9px; background:#0a0e16;
+    border:1px solid var(--line); color:var(--txt); font-size:14px;
+  }
+  .row { display:flex; gap:10px; }
+  .row .field { flex:1; }
+</style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <div class="logo">S</div>
+      <div>
+        <h1>SOMNI World Launcher</h1>
+        <div class="sub">Pick a world, or build your own — it simulates live in 3D.</div>
+      </div>
+    </div>
+    <div id="status"><span class="dot"></span><span id="status-text">checking server…</span></div>
+  </header>
+
+  <div class="toolbar">
+    <input id="search" placeholder="🔍  Search worlds — e.g. viking, dragons, mars, trade, survival…" />
+  </div>
+  <div class="toolbar"><div class="chips" id="chips"></div></div>
+
+  <div class="grid" id="grid"></div>
+  <div id="empty" style="display:none">No worlds match your search. Try another keyword or “Custom World”.</div>
+
+  <div id="overlay">
+    <div class="modal" id="modal"></div>
+  </div>
+
+<script>
+const API = (location.origin && location.origin.startsWith("http"))
+  ? location.origin : "http://localhost:8080";
+let PRESETS = [];
+let activeTag = "all";
+let query = "";
+
+const grid = document.getElementById("grid");
+const chipsEl = document.getElementById("chips");
+const searchEl = document.getElementById("search");
+const emptyEl = document.getElementById("empty");
+const overlay = document.getElementById("overlay");
+const modal = document.getElementById("modal");
+
+function setStatus(online, text) {
+  const s = document.getElementById("status");
+  s.classList.toggle("online", online);
+  document.getElementById("status-text").textContent = text;
+}
+
+async function checkServer() {
+  try {
+    const r = await fetch(`${API}/health`, { signal: AbortSignal.timeout(2500) });
+    const j = await r.json();
+    const be = j.backend ? ` · backend: ${j.backend}` : "";
+    setStatus(true, `server online${be}`);
+    return true;
+  } catch {
+    setStatus(false, "server offline — run  python -m orchestrator");
+    return false;
+  }
+}
+
+async function loadPresets() {
+  try {
+    const r = await fetch(`${API}/worlds/presets`, { signal: AbortSignal.timeout(3000) });
+    PRESETS = (await r.json()).presets || [];
+  } catch {
+    PRESETS = []; // server offline; cards still render from fallback below
+  }
+  buildChips();
+  render();
+}
+
+function buildChips() {
+  const tags = new Set(["all"]);
+  PRESETS.forEach(p => (p.tags || []).forEach(t => tags.add(t)));
+  chipsEl.innerHTML = "";
+  [...tags].slice(0, 14).forEach(t => {
+    const c = document.createElement("div");
+    c.className = "chip" + (t === activeTag ? " active" : "");
+    c.textContent = t;
+    c.onclick = () => { activeTag = t; buildChips(); render(); };
+    chipsEl.appendChild(c);
+  });
+}
+
+function matches(p) {
+  if (activeTag !== "all" && !(p.tags || []).includes(activeTag)) return false;
+  if (!query) return true;
+  const hay = (p.name + " " + p.description + " " + (p.tags || []).join(" ")
+               + " " + (p.faction_names || []).join(" ")).toLowerCase();
+  return hay.includes(query);
+}
+
+function render() {
+  grid.innerHTML = "";
+  const list = PRESETS.filter(matches);
+  list.forEach(p => grid.appendChild(card(p)));
+  // Always offer a custom world card.
+  grid.appendChild(customCard());
+  emptyEl.style.display = (list.length === 0 && query) ? "block" : "none";
+}
+
+function card(p) {
+  const el = document.createElement("div");
+  el.className = "card";
+  el.innerHTML = `
+    <div class="icon">${p.icon || "🌍"}</div>
+    <h3>${p.name}</h3>
+    <p>${p.description || ""}</p>
+    <div class="meta">${(p.tags || []).slice(0,3).map(t=>`<span class="tag">${t}</span>`).join("")}</div>
+    <div class="go">▶  Launch world</div>`;
+  el.onclick = () => createWorld(p);
+  return el;
+}
+
+function customCard() {
+  const el = document.createElement("div");
+  el.className = "card custom";
+  el.innerHTML = `
+    <div class="icon">✨</div>
+    <h3>Custom World</h3>
+    <p>Describe any scenario in your own words and SOMNI will build it.</p>
+    <div class="go">＋  Create custom</div>`;
+  el.onclick = showCustomForm;
+  return el;
+}
+
+function showOverlay(html) { modal.innerHTML = html; overlay.classList.add("show"); }
+function hideOverlay() { overlay.classList.remove("show"); }
+
+function showCustomForm() {
+  showOverlay(`
+    <h2>Create a Custom World</h2>
+    <div class="field"><label>Scenario (describe it)</label>
+      <input id="c-scenario" placeholder="e.g. nomad tribes fighting over a drying river"/></div>
+    <div class="row">
+      <div class="field"><label>Scale</label>
+        <select id="c-scale">
+          <option value="small">Small</option>
+          <option value="medium" selected>Medium</option>
+          <option value="large">Large</option>
+        </select></div>
+      <div class="field"><label>Factions</label>
+        <input id="c-factions" type="number" value="3" min="1" max="12"/></div>
+    </div>
+    <div class="field"><label>Tech level</label>
+      <select id="c-tech">
+        <option value="stone_age">Stone Age</option>
+        <option value="bronze_age">Bronze Age</option>
+        <option value="iron_age">Iron Age</option>
+        <option value="medieval" selected>Medieval</option>
+        <option value="industrial">Industrial</option>
+        <option value="modern">Modern</option>
+        <option value="future">Future</option>
+      </select></div>
+    <button onclick="submitCustom()">▶ Launch</button>
+    <button style="background:transparent;color:var(--dim);" onclick="hideOverlay()">Cancel</button>`);
+}
+
+function submitCustom() {
+  const scenario = document.getElementById("c-scenario").value.trim();
+  if (!scenario) { document.getElementById("c-scenario").focus(); return; }
+  createWorld({
+    name: "Custom World",
+    scenario,
+    scale: document.getElementById("c-scale").value,
+    factions: parseInt(document.getElementById("c-factions").value) || 3,
+    tech_level: document.getElementById("c-tech").value,
+  });
+}
+
+async function createWorld(p) {
+  showOverlay(`<div class="spinner"></div><h2>Building “${p.name}”…</h2>
+    <p>Generating terrain, factions and population.<br/>This is deterministic — same world every time.</p>`);
+  const body = {
+    scenario: p.scenario,
+    scale: p.scale || "medium",
+    factions: p.factions || 2,
+    faction_names: p.faction_names || null,
+    tech_level: p.tech_level || "medieval",
+  };
+  try {
+    const r = await fetch(`${API}/world/create`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body), signal: AbortSignal.timeout(20000),
+    });
+    if (!r.ok) throw new Error(`server returned ${r.status}`);
+    const j = await r.json();
+    showOverlay(`<h2>✅ “${j.world_name}” is live</h2>
+      <p>${j.factions} factions · ${j.dimensions?.join("×")} · backend: <b>${j.backend}</b><br/>
+      seed ${j.seed}</p>
+      <button onclick="location.href='${API}/view'">🌍 Open 3D world</button>
+      <button style="background:transparent;color:var(--dim);" onclick="hideOverlay()">Pick another</button>`);
+  } catch (e) {
+    showOverlay(`<h2 class="err">Couldn't start the world</h2>
+      <p>${e.message}.<br/><br/>Is the server running?<br/>
+      Start it with:<br/><code style="color:var(--accent2)">python -m orchestrator</code></p>
+      <button onclick="hideOverlay()">OK</button>`);
+  }
+}
+
+searchEl.addEventListener("input", e => { query = e.target.value.trim().toLowerCase(); render(); });
+
+(async function init() {
+  await checkServer();
+  await loadPresets();
+  setInterval(checkServer, 5000);
+})();
+</script>
+</body>
+</html>

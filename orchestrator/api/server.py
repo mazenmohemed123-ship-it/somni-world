@@ -8,11 +8,16 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from pathlib import Path
 from typing import List, Optional
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+
+VIEWER_DIR = Path(__file__).resolve().parents[2] / "viewer"
 
 from ..simulation.runner import SimulationRunner
 from ..bootstrap.world_schema import WorldSpec
@@ -108,6 +113,24 @@ def create_app(runner: Optional[SimulationRunner] = None) -> FastAPI:
         return r
 
     # ------------------------------------------------------------------
+    # Preset library (powers the launcher search + suggestions page)
+    # ------------------------------------------------------------------
+
+    @app.get("/worlds/presets", summary="List ready-to-run preset worlds")
+    async def list_presets():
+        from ..bootstrap.presets import get_presets
+        return {"presets": get_presets()}
+
+    @app.get("/health", summary="Liveness probe + active backend")
+    async def health():
+        r = state.get("runner")
+        return {
+            "status": "ok",
+            "world_running": r is not None and r.is_running(),
+            "backend": (r.backend if r else None),
+        }
+
+    # ------------------------------------------------------------------
     # World management endpoints
     # ------------------------------------------------------------------
 
@@ -133,23 +156,28 @@ def create_app(runner: Optional[SimulationRunner] = None) -> FastAPI:
             headless=req.headless if req.headless is not None else True,
         )
 
-        # Relay events to WebSocket clients
+        # Kernel callbacks fire from the simulation's background thread, not the
+        # asyncio loop — so schedule the broadcast onto the loop thread-safely.
+        loop = asyncio.get_running_loop()
+
+        def relay(message: dict) -> None:
+            if not manager.active:
+                return
+            try:
+                asyncio.run_coroutine_threadsafe(manager.broadcast(message), loop)
+            except RuntimeError:
+                pass  # loop shutting down
+
         @r.on("tick")
         def relay_tick(tick, sim_time):
-            asyncio.create_task(manager.broadcast({
-                "event": "tick",
-                "tick": tick,
-                "sim_time": sim_time,
-            }))
+            # Broadcast at ~2 Hz, not every tick, to avoid flooding clients.
+            if tick % max(1, spec.ticks_per_second // 2) == 0:
+                relay({"event": "tick", "tick": tick, "sim_time": sim_time})
 
         @r.on("faction_war")
         def relay_war(attacker, defender, region):
-            asyncio.create_task(manager.broadcast({
-                "event": "faction_war",
-                "attacker": attacker,
-                "defender": defender,
-                "region": region,
-            }))
+            relay({"event": "faction_war", "attacker": attacker,
+                   "defender": defender, "region": region})
 
         r.setup().start()
         state["runner"] = r
@@ -160,6 +188,7 @@ def create_app(runner: Optional[SimulationRunner] = None) -> FastAPI:
             "seed": spec.seed,
             "dimensions": spec.dimensions(),
             "factions": len(spec.factions),
+            "backend": r.backend,
         }
 
     @app.delete("/world", summary="Stop and clear the current simulation")
@@ -276,6 +305,25 @@ def create_app(runner: Optional[SimulationRunner] = None) -> FastAPI:
                     pass
         except WebSocketDisconnect:
             manager.disconnect(ws)
+
+    # ------------------------------------------------------------------
+    # Serve the viewer UI from the same origin (no file:// CORS issues).
+    #   /            -> launcher hub (search + preset worlds)
+    #   /view        -> 3D world viewer
+    #   /viewer/...  -> raw static assets
+    # ------------------------------------------------------------------
+    if VIEWER_DIR.is_dir():
+        @app.get("/", include_in_schema=False)
+        async def launcher_page():
+            launcher = VIEWER_DIR / "launcher.html"
+            target = launcher if launcher.exists() else VIEWER_DIR / "index.html"
+            return FileResponse(target)
+
+        @app.get("/view", include_in_schema=False)
+        async def world_page():
+            return FileResponse(VIEWER_DIR / "index.html")
+
+        app.mount("/viewer", StaticFiles(directory=str(VIEWER_DIR)), name="viewer")
 
     return app
 
