@@ -54,8 +54,16 @@
     padding:20px; cursor:pointer; transition:.18s; position:relative; overflow:hidden;
   }
   .card:hover { transform:translateY(-3px); border-color:var(--accent); box-shadow:0 12px 30px rgba(0,0,0,.4); }
-  .card .icon { font-size:34px; }
-  .card h3 { margin:10px 0 6px; font-size:18px; }
+  .card .world-seal {
+    width:46px; height:46px; border-radius:10px;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    display:grid; place-items:center; color:#06121f;
+    font-size:13px; font-weight:800; letter-spacing:1px;
+    flex-shrink:0;
+  }
+  .card .card-head { display:flex; align-items:center; gap:12px; }
+  .card h3 { margin:0; font-size:17px; }
+  .card .card-body { margin-top:12px; }
   .card p { color:var(--dim); font-size:13px; line-height:1.5; min-height:38px; }
   .meta { display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; }
   .tag {
@@ -117,7 +125,7 @@
   </header>
 
   <div class="toolbar">
-    <input id="search" placeholder="🔍  Search worlds — e.g. viking, dragons, mars, trade, survival…" />
+    <input id="search" placeholder="Search worlds — e.g. viking, dragons, mars, trade, survival …" />
   </div>
   <div class="toolbar"><div class="chips" id="chips"></div></div>
 
@@ -202,15 +210,26 @@ function render() {
   emptyEl.style.display = (list.length === 0 && query) ? "block" : "none";
 }
 
+function initials(name) {
+  const words = name.trim().split(/\s+/);
+  return words.length >= 2
+    ? (words[0][0] + words[1][0]).toUpperCase()
+    : name.slice(0, 2).toUpperCase();
+}
+
 function card(p) {
   const el = document.createElement("div");
   el.className = "card";
   el.innerHTML = `
-    <div class="icon">${p.icon || "🌍"}</div>
-    <h3>${p.name}</h3>
-    <p>${p.description || ""}</p>
-    <div class="meta">${(p.tags || []).slice(0,3).map(t=>`<span class="tag">${t}</span>`).join("")}</div>
-    <div class="go">▶  Launch world</div>`;
+    <div class="card-head">
+      <div class="world-seal">${initials(p.name)}</div>
+      <h3>${p.name}</h3>
+    </div>
+    <div class="card-body">
+      <p>${p.description || ""}</p>
+      <div class="meta">${(p.tags || []).slice(0,3).map(t=>`<span class="tag">${t}</span>`).join("")}</div>
+      <div class="go">Launch World</div>
+    </div>`;
   el.onclick = () => createWorld(p);
   return el;
 }
@@ -219,10 +238,14 @@ function customCard() {
   const el = document.createElement("div");
   el.className = "card custom";
   el.innerHTML = `
-    <div class="icon">✨</div>
-    <h3>Custom World</h3>
-    <p>Describe any scenario in your own words and SOMNI will build it.</p>
-    <div class="go">＋  Create custom</div>`;
+    <div class="card-head">
+      <div class="world-seal" style="background:linear-gradient(135deg,#4a6fa5,var(--accent2))">+</div>
+      <h3>Custom World</h3>
+    </div>
+    <div class="card-body">
+      <p>Describe any scenario in your own words and SOMNI will build it live in 3D.</p>
+      <div class="go" style="background:rgba(125,255,196,.12);color:var(--accent2);border:1px solid rgba(125,255,196,.25)">Create Custom World</div>
+    </div>`;
   el.onclick = showCustomForm;
   return el;
 }
@@ -255,7 +278,7 @@ function showCustomForm() {
         <option value="modern">Modern</option>
         <option value="future">Future</option>
       </select></div>
-    <button onclick="submitCustom()">▶ Launch</button>
+    <button onclick="submitCustom()">Launch World</button>
     <button style="background:transparent;color:var(--dim);" onclick="hideOverlay()">Cancel</button>`);
 }
 
@@ -288,11 +311,11 @@ async function createWorld(p) {
     });
     if (!r.ok) throw new Error(`server returned ${r.status}`);
     const j = await r.json();
-    showOverlay(`<h2>✅ “${j.world_name}” is live</h2>
-      <p>${j.factions} factions · ${j.dimensions?.join("×")} · backend: <b>${j.backend}</b><br/>
+    showOverlay(`<h2>”${j.world_name}” is live</h2>
+      <p>${j.factions} factions · ${j.dimensions?.join(“×”)} · backend: <b>${j.backend}</b><br/>
       seed ${j.seed}</p>
-      <button onclick="location.href='${API}/view'">🌍 Open 3D world</button>
-      <button style="background:transparent;color:var(--dim);" onclick="hideOverlay()">Pick another</button>`);
+      <button onclick=”location.href='${API}/view'”>Open 3D World</button>
+      <button style=”background:transparent;color:var(--dim);” onclick=”hideOverlay()”>Pick another</button>`);
   } catch (e) {
     showOverlay(`<h2 class="err">Couldn't start the world</h2>
       <p>${e.message}.<br/><br/>Is the server running?<br/>

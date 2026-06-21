@@ -101,7 +101,7 @@
   </div>
 
   <div id="events-panel" class="panel">
-    <h3>⚡ Live Events</h3>
+    <h3>Live Events</h3>
     <div id="events-list"></div>
   </div>
 
@@ -112,7 +112,7 @@
     <div class="stat-row"><span class="stat-label">FPS</span><span class="stat-value" id="stat-fps">—</span></div>
   </div>
 
-  <div id="controls-hint" class="panel">🖱 Drag to orbit · Scroll to zoom · Right-drag to pan</div>
+  <div id="controls-hint" class="panel">Drag to orbit &nbsp;·&nbsp; Scroll to zoom &nbsp;·&nbsp; Right-drag to pan</div>
 </div>
 
 <script type="module">
@@ -192,8 +192,14 @@ function buildDemoWorld(gw=32, gh=32, nFactions=3) {
       });
     }
   }
-  return { config:{name:'demo_world',width:gw*16,height:gh*16,region_size:16},
-    clock:{tick:0,year:1,season:0,month:1,day:1,hour:6}, regions };
+  const factions = Array.from({length: nFactions}, (_, i) => ({
+    id: i, name: ['Northern Clans', 'Desert Empire', 'Forest Guild', 'Sea Lords'][i] || `Faction ${i+1}`, treasury: 200,
+  }));
+  return {
+    config: {name:'demo_world', width:gw*16, height:gh*16, region_size:16},
+    clock: {tick:0, year:1, season:0, month:1, day:1, hour:6},
+    factions, regions,
+  };
 }
 
 // ===========================================================================
@@ -461,24 +467,42 @@ function updateClockHUD(clock) {
 }
 
 function updateFactionsHUD(world) {
+  // Build name map from the factions array (present in live kernel data)
+  const factionNames = {};
+  if (Array.isArray(world.factions)) {
+    for (const f of world.factions) {
+      if (f && typeof f.id === 'number') factionNames[f.id] = f.name;
+    }
+  }
+
   const counts = {};
   for (const r of world.regions) {
     const fid = r.controlling_faction;
-    if (fid === undefined || fid === 0xFFFFFFFF) continue;
+    // PyKernel uses -1 for unclaimed; C++ kernel uses 0xFFFFFFFF — skip both
+    if (fid === undefined || fid === null || fid < 0 || fid > 0x0FFF) continue;
     counts[fid] = (counts[fid] || 0) + (r.npc_count || 0);
   }
+
   const list = document.getElementById('factions-list');
   list.innerHTML = '';
-  const sorted = Object.entries(counts).sort((a,b) => b[1]-a[1]);
-  for (const [fid, pop] of sorted) {
-    const color = '#' + FACTION_COLORS[fid % FACTION_COLORS.length].toString(16).padStart(6,'0');
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+  const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+
+  for (const [fidStr, pop] of sorted) {
+    const fid = parseInt(fidStr, 10);
+    if (isNaN(fid) || fid < 0) continue;
+    const colorHex = FACTION_COLORS[fid % FACTION_COLORS.length];
+    const color = '#' + colorHex.toString(16).padStart(6, '0');
+    const name = factionNames[fid] || `Faction ${fid + 1}`;
     const row = document.createElement('div');
     row.className = 'faction-row';
-    row.innerHTML = `<div class="faction-dot" style="background:${color};color:${color}"></div>
-      <div class="faction-name">Faction ${fid}</div><div class="faction-pop">${pop} pop</div>`;
+    row.innerHTML = `<div class="faction-dot" style="background:${color}"></div>
+      <div class="faction-name">${name}</div>
+      <div class="faction-pop">${pop.toLocaleString()}</div>`;
     list.appendChild(row);
   }
-  document.getElementById('stat-npcs').textContent = Object.values(counts).reduce((a,b)=>a+b,0);
+
+  document.getElementById('stat-npcs').textContent = total.toLocaleString();
   document.getElementById('stat-regions').textContent = world.regions.length;
 }
 
@@ -545,7 +569,7 @@ function connectWebSocket() {
         const data = JSON.parse(ev.data);
         if (data.event === 'tick') { /* handled by poll */ }
         if (data.event === 'faction_war') {
-          pushEvent('war', `⚔️ Faction ${data.attacker} declared war on ${data.defender}`);
+          pushEvent('war', `Faction ${data.attacker} declared war on ${data.defender}`);
           activeWars++;
           document.getElementById('stat-wars').textContent = activeWars;
         }
