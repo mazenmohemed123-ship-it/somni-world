@@ -1,0 +1,45 @@
+[gd_scene load_steps=2 format=3 uid="uid://somni_demo"]
+
+[ext_resource type="Script" path="res://addons/somni/../demo/demo.gd" id="1_demo"]
+
+[node name="Demo" type="Node"]
+script = ExtResource("1_demo")
+
+[node name="UI" type="VBoxContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 20.0
+offset_top = 20.0
+offset_right = -20.0
+offset_bottom = -20.0
+
+[node name="LabelStatus" type="Label" parent="UI"]
+text = "Initialising..."
+
+[node name="LabelTick" type="Label" parent="UI"]
+text = "Tick: 0"
+
+[node name="LabelFactions" type="Label" parent="UI"]
+text = "(no factions yet)"
+vertical_alignment = 1
+
+[node name="HSep" type="HSeparator" parent="UI"]
+
+[node name="BtnDeclareWar" type="Button" parent="UI"]
+text = "Declare War (faction 0 vs 1)"
+
+[node name="BtnMakePeace" type="Button" parent="UI"]
+text = "Make Peace (faction 0 & 1)"
+
+[node name="BtnRecruitArmy" type="Button" parent="UI"]
+text = "Recruit Army (faction 0, +50)"
+
+[node name="BtnSendFood" type="Button" parent="UI"]
+text = "Send Food (faction 0, +200)"
+
+[node name="BtnDisaster" type="Button" parent="UI"]
+text = "Trigger Disaster (region 0, 70%)"
+
+[node name="BtnPause" type="Button" parent="UI"]
+text = "Pause"

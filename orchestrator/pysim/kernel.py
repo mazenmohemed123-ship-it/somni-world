@@ -139,6 +139,7 @@ class PyKernel:
 
         self._faction_names: Dict[int, str] = {}
         self._faction_treasury: Dict[int, float] = {}
+        self._faction_army: Dict[int, float] = {}
         self._active_wars: List[tuple] = []
 
         self.regions: List[_Region] = []
@@ -216,6 +217,7 @@ class PyKernel:
         for fid, fs in enumerate(self.spec.factions):
             self._faction_names[fid] = fs.name
             self._faction_treasury[fid] = float(getattr(fs, "initial_treasury", 200.0))
+            self._faction_army[fid] = float(getattr(fs, "initial_army", 50.0))
 
             # Spawn near requested coords (clamped to the region grid), else
             # spread factions evenly across the map.
@@ -355,6 +357,36 @@ class PyKernel:
     def region(self, region_id: int) -> "_RegionView":
         return _RegionView(self.regions[region_id])
 
+    def _faction_summary(self) -> list:
+        """Aggregate per-region stats into per-faction totals for the JSON output."""
+        pop: Dict[int, float] = {fid: 0.0 for fid in self._faction_names}
+        food: Dict[int, float] = {fid: 0.0 for fid in self._faction_names}
+        territory: Dict[int, int] = {fid: 0 for fid in self._faction_names}
+        for r in self.regions:
+            fid = r.controlling_faction
+            if fid not in self._faction_names:
+                continue
+            pop[fid] += r.npc_count
+            food[fid] += r.resources[0] if r.resources else 0.0
+            territory[fid] += 1
+        at_war: Dict[int, list] = {fid: [] for fid in self._faction_names}
+        for a, b in self._active_wars:
+            if a in at_war: at_war[a].append(b)
+            if b in at_war: at_war[b].append(a)
+        return [
+            {
+                "id": fid,
+                "name": name,
+                "population": round(pop.get(fid, 0.0), 1),
+                "food": round(food.get(fid, 0.0), 1),
+                "gold": round(self._faction_treasury.get(fid, 0.0), 1),
+                "army": round(self._faction_army.get(fid, 0.0), 1),
+                "territory": territory.get(fid, 0),
+                "at_war_with": at_war.get(fid, []),
+            }
+            for fid, name in self._faction_names.items()
+        ]
+
     def world_json(self) -> str:
         c = self.clock()
         with self._lock:
@@ -377,11 +409,7 @@ class PyKernel:
                 "tick": c.tick, "year": c.year, "season": c.season,
                 "month": c.month, "day": c.day, "hour": c.hour,
             },
-            "factions": [
-                {"id": fid, "name": name,
-                 "treasury": round(self._faction_treasury.get(fid, 0.0), 1)}
-                for fid, name in self._faction_names.items()
-            ],
+            "factions": self._faction_summary(),
             "regions": regions,
         })
 
@@ -397,9 +425,51 @@ class PyKernel:
             r = self.regions[region_id]
             deaths = int(r.npc_count * magnitude)
             r.npc_count = max(0, r.npc_count - deaths)
-            r.resources[0] *= (1.0 - magnitude)
-        if self._cb_npc_died and deaths > 0:
-            self._cb_npc_died(region_id, 0)
+
+    def declare_war(self, faction_a: int, faction_b: int) -> None:
+        nf = len(self.spec.factions)
+        if not (0 <= faction_a < nf and 0 <= faction_b < nf and faction_a != faction_b):
+            return
+        with self._lock:
+            already = any((a == faction_a and b == faction_b) or
+                          (a == faction_b and b == faction_a)
+                          for a, b in self._active_wars)
+            if not already:
+                self._active_wars.append((faction_a, faction_b))
+        region = next((r.id for r in self.regions
+                       if r.controlling_faction == faction_b), 0)
+        if self._cb_faction_war:
+            self._cb_faction_war(faction_a, faction_b, region)
+
+    def make_peace(self, faction_a: int, faction_b: int) -> None:
+        with self._lock:
+            self._active_wars = [
+                (a, b) for a, b in self._active_wars
+                if not ((a == faction_a and b == faction_b) or
+                        (a == faction_b and b == faction_a))
+            ]
+
+    def recruit_army(self, faction_id: int, amount: float = 50.0) -> None:
+        with self._lock:
+            self._faction_army[faction_id] = \
+                self._faction_army.get(faction_id, 0.0) + amount
+
+    def send_food(self, faction_id: int, amount: float = 200.0) -> None:
+        with self._lock:
+            for r in self.regions:
+                if r.controlling_faction == faction_id:
+                    r.resources[0] = min(
+                        r.resource_cap[0] or 1e9, r.resources[0] + amount)
+
+    def spawn_settlers(self, faction_id: int, amount: int = 100) -> None:
+        with self._lock:
+            owned = [r for r in self.regions
+                     if r.controlling_faction == faction_id]
+            if not owned:
+                return
+            per = max(1, amount // len(owned))
+            for r in owned:
+                r.npc_count += per
 
 
 class _PyClock:

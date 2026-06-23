@@ -193,6 +193,33 @@ class SimulationRunner:
         cmd.param_f = magnitude
         self.kernel.player_command(cmd)
 
+    def declare_war(self, faction_a: int, faction_b: int) -> None:
+        if self.backend == "python":
+            self.kernel.declare_war(faction_a, faction_b)
+
+    def make_peace(self, faction_a: int, faction_b: int) -> None:
+        if self.backend == "python":
+            self.kernel.make_peace(faction_a, faction_b)
+
+    def recruit_army(self, faction_id: int, amount: float = 50.0) -> None:
+        if self.backend == "python":
+            self.kernel.recruit_army(faction_id, amount)
+
+    def send_food(self, faction_id: int, amount: float = 200.0) -> None:
+        if self.backend == "python":
+            self.kernel.send_food(faction_id, amount)
+
+    def spawn_settlers(self, faction_id: int, amount: int = 100) -> None:
+        if self.backend == "python":
+            self.kernel.spawn_settlers(faction_id, amount)
+
+    def factions_info(self) -> list:
+        """Return all faction data from the running world."""
+        if not self.kernel:
+            return []
+        import json
+        return json.loads(self.kernel.world_json()).get("factions", [])
+
     # ------------------------------------------------------------------
     # Event handlers
     # ------------------------------------------------------------------

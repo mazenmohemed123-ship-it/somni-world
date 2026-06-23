@@ -40,12 +40,17 @@ class CreateWorldRequest(BaseModel):
 
 
 class PlayerCommandRequest(BaseModel):
-    command: str           # "add_resource" | "disaster" | "spawn_npc" | "advance"
+    command: str
+    # region-level commands
     region_id: Optional[int] = None
     resource_type: Optional[int] = None
     amount: Optional[float] = None
     magnitude: Optional[float] = 0.5
     ticks: Optional[int] = 100
+    # faction-level commands
+    faction_a: Optional[int] = None    # declare_war / make_peace
+    faction_b: Optional[int] = None    # declare_war / make_peace
+    faction_id: Optional[int] = None   # recruit_army / send_food / spawn_settlers
 
 
 class WorldResponse(BaseModel):
@@ -259,6 +264,11 @@ def create_app(runner: Optional[SimulationRunner] = None) -> FastAPI:
     # Player commands (STEP 6)
     # ------------------------------------------------------------------
 
+    @app.get("/world/factions", summary="All faction data")
+    async def get_factions():
+        r = get_runner()
+        return {"factions": r.factions_info()}
+
     @app.post("/player/command", summary="Issue a player command to the simulation")
     async def player_command(req: PlayerCommandRequest):
         r = get_runner()
@@ -274,6 +284,35 @@ def create_app(runner: Optional[SimulationRunner] = None) -> FastAPI:
                 raise HTTPException(400, "region_id required")
             r.trigger_disaster(req.region_id, req.magnitude or 0.5)
             return {"status": "ok", "command": "disaster"}
+
+        elif req.command == "declare_war":
+            if req.faction_a is None or req.faction_b is None:
+                raise HTTPException(400, "faction_a and faction_b required")
+            r.declare_war(req.faction_a, req.faction_b)
+            return {"status": "ok", "command": "declare_war",
+                    "attacker": req.faction_a, "defender": req.faction_b}
+
+        elif req.command == "make_peace":
+            if req.faction_a is None or req.faction_b is None:
+                raise HTTPException(400, "faction_a and faction_b required")
+            r.make_peace(req.faction_a, req.faction_b)
+            return {"status": "ok", "command": "make_peace",
+                    "faction_a": req.faction_a, "faction_b": req.faction_b}
+
+        elif req.command == "recruit_army":
+            r.recruit_army(req.faction_id or 0, req.amount or 50.0)
+            return {"status": "ok", "command": "recruit_army",
+                    "faction_id": req.faction_id or 0, "amount": req.amount or 50.0}
+
+        elif req.command == "send_food":
+            r.send_food(req.faction_id or 0, req.amount or 200.0)
+            return {"status": "ok", "command": "send_food",
+                    "faction_id": req.faction_id or 0, "amount": req.amount or 200.0}
+
+        elif req.command == "spawn_settlers":
+            r.spawn_settlers(req.faction_id or 0, int(req.amount or 100))
+            return {"status": "ok", "command": "spawn_settlers",
+                    "faction_id": req.faction_id or 0, "amount": req.amount or 100}
 
         else:
             raise HTTPException(400, f"Unknown command: {req.command}")
