@@ -6,31 +6,41 @@ the simulation loop**. Same seed always produces the same world.
 
 ---
 
-## 🚀 Quick start (no build required)
+## Quick start (zero install — just open a file)
 
-You do **not** need to compile any C++ to run SOMNI. If the compiled kernel
-isn't present, SOMNI automatically uses a pure-Python simulation backend.
+The fastest way to use SOMNI needs **no Python, no server, no build** — just a
+web browser.
 
-### Windows
-Double-click **`start.bat`** — that's it.
+### Open it
+- **Windows** — double-click **`SOMNI.html`** (or `start.bat`)
+- **macOS / Linux** — double-click **`SOMNI.html`** (or run `./start.sh`)
 
-### macOS / Linux
-```bash
-./start.sh
-```
+That's it. The file opens in your browser, you pick a world, and it simulates
+live in 3D. Then you **command the world**: type things like *declare war on
+the second faction*, *send food to my people*, *raise an army*, *unleash a
+disaster* — in English or Arabic — and the world reacts in real time.
 
-### Any platform (manual)
+Everything (world generation, the simulation loop, factions, wars, economy,
+and 3D rendering) runs **inside the browser**. It is fully deterministic — the
+same world always plays out the same way.
+
+> The only thing it loads from the internet is the Three.js 3D library from a
+> CDN. For the richer per-region backend, use the optional Python server below.
+
+---
+
+## Advanced: the Python server (optional, richer backend)
+
+There is also a Python backend with a per-region statistical simulation and a
+REST + WebSocket API, serving `viewer/launcher.html` + `viewer/index.html`. No
+C++ build needed — if `somni_core` isn't present it uses the pure-Python kernel.
+
 ```bash
 pip install fastapi uvicorn pydantic websockets
 python somni.py
 ```
 
-Your browser opens the **World Launcher** at <http://localhost:8080/>.
-Search for a world (e.g. *viking*, *dragons*, *mars*), click it, and watch it
-simulate live in 3D.
-
-> No `somni_core.pyd`, no DLLs, no CMake, no PATH headaches. The Python backend
-> runs everywhere Python runs.
+Then open <http://localhost:8080/>.
 
 ---
 

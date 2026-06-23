@@ -1,26 +1,11 @@
 @echo off
 REM ============================================================
 REM  SOMNI - one-click launcher for Windows
-REM  Double-click this file, or run it from any folder.
-REM  No C++ / CMake / DLLs needed - pure-Python backend is used
-REM  automatically if the compiled kernel isn't built.
+REM  Double-click this file to open SOMNI in your browser.
+REM  No Python, no server, no install needed - it just opens.
 REM ============================================================
-
-REM Move to the folder this script lives in (handles spaces in the path).
 cd /d "%~dp0"
-
 echo.
-echo   Starting SOMNI...
+echo   Opening SOMNI in your browser...
 echo.
-
-REM Try the "py" launcher first (recommended on Windows), then "python".
-where py >nul 2>nul
-if %errorlevel%==0 (
-    py somni.py
-) else (
-    python somni.py
-)
-
-echo.
-echo   SOMNI has stopped. Press any key to close this window.
-pause >nul
+start "" "SOMNI.html"

@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SOMNI — Living Worlds</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<style>
+  :root {
+    --bg:#070b12; --panel:rgba(14,19,30,.82); --line:rgba(120,150,200,.16);
+    --txt:#eef3fb; --dim:#8ea3c2; --accent:#5fa8ff; --accent2:#7dffc4;
+    --warn:#ff8a6a; --gold:#ffd479;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html, body { height:100%; overflow:hidden; }
+  body {
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
+    background:#070b12; color:var(--txt);
+  }
+  code { font-family:"SF Mono",Consolas,monospace; color:var(--accent2); }
+
+  /* ============ LAUNCHER ============ */
+  #launcher {
+    position:fixed; inset:0; overflow-y:auto; z-index:30;
+    background:radial-gradient(1300px 820px at 72% -12%,#16294a 0,#070b12 62%);
+    padding:34px 22px 70px;
+  }
+  .wrap { max-width:1180px; margin:0 auto; }
+  .brand { display:flex; align-items:center; gap:16px; margin-bottom:6px; }
+  .logo {
+    width:52px; height:52px; border-radius:14px;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    display:grid; place-items:center; font-size:26px; font-weight:800; color:#06121f;
+    box-shadow:0 8px 30px rgba(95,168,255,.35);
+  }
+  h1 { font-size:32px; letter-spacing:.4px; font-weight:800; }
+  .sub { color:var(--dim); margin-top:5px; font-size:14.5px; }
+  .pill {
+    display:inline-flex; align-items:center; gap:8px; margin-top:16px;
+    padding:7px 15px; border-radius:22px; background:var(--panel);
+    border:1px solid var(--line); font-size:13px; color:var(--dim);
+  }
+  .pill b { color:var(--accent2); font-weight:600; }
+  .toolbar { display:flex; gap:12px; flex-wrap:wrap; margin:26px 0 16px; }
+  #search {
+    flex:1; min-width:240px; padding:15px 18px; font-size:16px; color:var(--txt);
+    background:var(--panel); border:1px solid var(--line); border-radius:13px; outline:none;
+  }
+  #search:focus { border-color:var(--accent); }
+  .chips { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:22px; }
+  .chip {
+    padding:9px 15px; border-radius:20px; background:var(--panel);
+    border:1px solid var(--line); color:var(--dim); cursor:pointer; font-size:13px;
+    -webkit-user-select:none; user-select:none; transition:.15s;
+  }
+  .chip:hover { color:var(--txt); border-color:var(--accent); }
+  .chip.active { background:var(--accent); color:#06121f; border-color:var(--accent); font-weight:600; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:16px; }
+  .card {
+    background:var(--panel); border:1px solid var(--line); border-radius:16px;
+    padding:20px; cursor:pointer; transition:.18s;
+  }
+  .card:hover { transform:translateY(-3px); border-color:var(--accent); box-shadow:0 14px 34px rgba(0,0,0,.45); }
+  .card-head { display:flex; align-items:center; gap:13px; }
+  .seal {
+    width:46px; height:46px; border-radius:11px; flex-shrink:0;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    display:grid; place-items:center; color:#06121f; font-size:14px; font-weight:800;
+  }
+  .card h3 { font-size:17px; }
+  .card p { color:var(--dim); font-size:13px; line-height:1.55; margin-top:12px; min-height:40px; }
+  .meta { display:flex; gap:7px; margin-top:13px; flex-wrap:wrap; }
+  .tag { font-size:11px; padding:3px 9px; border-radius:9px;
+    background:rgba(95,168,255,.12); color:var(--accent); border:1px solid rgba(95,168,255,.2); }
+  .go { margin-top:15px; padding:11px; text-align:center; border-radius:10px; font-weight:700; font-size:13px;
+    background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#06121f; }
+  .card.custom { border-style:dashed; }
+  .card.custom .go { background:rgba(125,255,196,.13); color:var(--accent2); border:1px solid rgba(125,255,196,.3); }
+  #empty { text-align:center; color:var(--dim); margin:40px 0; display:none; }
+
+  /* ============ VIEWER ============ */
+  #viewer { position:fixed; inset:0; display:none; }
+  #c { display:block; width:100%; height:100%; }
+  #hud { position:fixed; inset:0; pointer-events:none; }
+  .glass {
+    position:absolute; background:var(--panel);
+    -webkit-backdrop-filter:blur(13px); backdrop-filter:blur(13px);
+    border:1px solid var(--line); border-radius:14px;
+    box-shadow:0 10px 34px rgba(0,0,0,.45);
+  }
+  .glass h4 { font-size:10px; color:var(--dim); text-transform:uppercase; letter-spacing:2px;
+    margin-bottom:11px; font-weight:700; }
+
+  #topbar { top:16px; left:16px; right:16px; height:56px; display:flex; align-items:center;
+    gap:16px; padding:0 18px; pointer-events:auto; }
+  #backBtn { cursor:pointer; color:var(--dim); font-size:13px; padding:8px 14px; border-radius:9px;
+    border:1px solid var(--line); transition:.15s; -webkit-user-select:none; user-select:none; }
+  #backBtn:hover { color:var(--txt); border-color:var(--accent); }
+  #worldName { font-size:16px; font-weight:700; }
+  #clock { margin-left:auto; text-align:right; }
+  #clockDate { font-size:14px; font-weight:600; }
+  #clockSub { font-size:11px; color:var(--dim); margin-top:2px; }
+  #pauseBtn { cursor:pointer; padding:8px 16px; border-radius:9px; font-size:13px; font-weight:600;
+    background:var(--accent); color:#06121f; border:none; -webkit-user-select:none; user-select:none; }
+
+  #factions { top:84px; right:16px; width:230px; padding:15px; }
+  .frow { display:flex; align-items:center; gap:9px; margin-bottom:11px; }
+  .frow:last-child { margin-bottom:0; }
+  .fdot { width:11px; height:11px; border-radius:50%; flex-shrink:0; box-shadow:0 0 8px currentColor; }
+  .fname { font-size:13px; flex:1; font-weight:500; }
+  .fpop { font-size:11px; color:var(--dim); }
+  .fbar { height:3px; border-radius:2px; margin-top:4px; background:rgba(255,255,255,.08); overflow:hidden; }
+  .fbar > div { height:100%; border-radius:2px; }
+
+  #stats { bottom:138px; right:16px; width:230px; padding:15px; }
+  .srow { display:flex; justify-content:space-between; font-size:12.5px; margin-bottom:8px; }
+  .srow:last-child { margin-bottom:0; }
+  .slabel { color:var(--dim); }
+  .sval { font-weight:700; }
+
+  #events { top:84px; left:16px; width:320px; max-height:42vh; padding:15px; overflow:hidden; }
+  .erow { font-size:12px; padding:5px 0; border-bottom:1px solid rgba(255,255,255,.05);
+    opacity:0; animation:slide .35s forwards; line-height:1.4; }
+  @keyframes slide { from{opacity:0;transform:translateX(-7px);} to{opacity:1;transform:translateX(0);} }
+  .erow .et { color:#6a7894; font-size:10px; margin-right:6px; }
+  .e-war{color:var(--warn);} .e-die{color:#c79a86;} .e-trade{color:var(--accent2);}
+  .e-you{color:var(--gold);} .e-info{color:var(--dim);}
+
+  /* command console */
+  #console { bottom:16px; left:16px; right:16px; max-width:760px; margin:0 auto;
+    padding:14px 16px; pointer-events:auto; }
+  #console h4 { display:flex; justify-content:space-between; align-items:center; }
+  #cmdLog { font-size:12.5px; color:var(--dim); margin-bottom:10px; min-height:18px; line-height:1.5; }
+  #cmdLog b { color:var(--gold); }
+  .cmdline { display:flex; gap:10px; }
+  #cmdInput { flex:1; padding:12px 15px; font-size:14px; color:var(--txt);
+    background:#0a0f18; border:1px solid var(--line); border-radius:10px; outline:none; }
+  #cmdInput:focus { border-color:var(--accent); }
+  #cmdSend { padding:12px 22px; border:none; border-radius:10px; cursor:pointer; font-weight:700;
+    font-size:14px; background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#06121f; }
+  .hints { margin-top:9px; display:flex; gap:7px; flex-wrap:wrap; }
+  .hint { font-size:11px; padding:4px 10px; border-radius:8px; cursor:pointer; color:var(--dim);
+    background:rgba(95,168,255,.08); border:1px solid var(--line); transition:.15s; }
+  .hint:hover { color:var(--txt); border-color:var(--accent); }
+
+  #loading { position:fixed; inset:0; background:#070b12; display:none; place-items:center;
+    z-index:40; flex-direction:column; gap:16px; }
+  #loading.show { display:grid; }
+  .spin { width:42px; height:42px; border:3px solid rgba(255,255,255,.14);
+    border-top-color:var(--accent); border-radius:50%; animation:rot 1s linear infinite; }
+  @keyframes rot { to{transform:rotate(360deg);} }
+  #loading p { color:var(--dim); font-size:13px; letter-spacing:1px; }
+
+  @media (max-width:720px){
+    #events,#factions,#stats{ display:none; }
+    #console{ left:10px; right:10px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ====================== LAUNCHER ====================== -->
+<div id="launcher">
+  <div class="wrap">
+    <div class="brand">
+      <div class="logo">S</div>
+      <div>
+        <h1>SOMNI</h1>
+        <div class="sub">Living worlds you can shape. Pick one, then command it — it reacts live in 3D.</div>
+      </div>
+    </div>
+    <div class="pill">Runs entirely in your browser &middot; <b>no install, no server</b> &middot; deterministic engine</div>
+
+    <div class="toolbar">
+      <input id="search" placeholder="Search worlds — viking, dragons, mars, trade, survival, rome …" />
+    </div>
+    <div class="chips" id="chips"></div>
+    <div class="grid" id="grid"></div>
+    <div id="empty">No worlds match. Try another keyword.</div>
+  </div>
+</div>
+
+<!-- ====================== VIEWER ====================== -->
+<div id="viewer">
+  <canvas id="c"></canvas>
+  <div id="hud">
+    <div id="topbar" class="glass">
+      <div id="backBtn">&larr; Worlds</div>
+      <div id="worldName">World</div>
+      <div id="clock">
+        <div id="clockDate">Year 1 — Spring</div>
+        <div id="clockSub">Day 1 · 06:00 · tick 0</div>
+      </div>
+      <button id="pauseBtn">Pause</button>
+    </div>
+
+    <div id="events" class="glass">
+      <h4>Chronicle</h4>
+      <div id="eventList"></div>
+    </div>
+
+    <div id="factions" class="glass">
+      <h4>Factions</h4>
+      <div id="factionList"></div>
+    </div>
+
+    <div id="stats" class="glass">
+      <h4>World</h4>
+      <div class="srow"><span class="slabel">Population</span><span class="sval" id="sPop">—</span></div>
+      <div class="srow"><span class="slabel">Active wars</span><span class="sval" id="sWars">—</span></div>
+      <div class="srow"><span class="slabel">Regions</span><span class="sval" id="sReg">—</span></div>
+      <div class="srow"><span class="slabel">FPS</span><span class="sval" id="sFps">—</span></div>
+    </div>
+
+    <div id="console" class="glass">
+      <h4><span>Command the world</span><span style="color:var(--dim);font-weight:400;text-transform:none;letter-spacing:0">type in English or العربية</span></h4>
+      <div id="cmdLog">Tell the world what to do — declare war, send aid, unleash a disaster, raise an army…</div>
+      <div class="cmdline">
+        <input id="cmdInput" placeholder="e.g. declare war on the second faction   ·   ابعت طعام لشعبي" />
+        <button id="cmdSend">Send</button>
+      </div>
+      <div class="hints" id="hints"></div>
+    </div>
+  </div>
+</div>
+
+<div id="loading"><div class="spin"></div><p id="loadText">BUILDING WORLD…</p></div>
+
+<!-- ====================== ENGINE (pure JS, deterministic) ====================== -->
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { Sky } from 'three/addons/objects/Sky.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+// =====================================================================
+//  PRESET WORLDS  (36)
+// =====================================================================
+const PRESETS = [
+  {id:"mesopotamia",name:"Mesopotamia",scale:"large",factions:["Babylon","Assyria","Sumer","Akkad","Elam"],desc:"City-states fight over the Fertile Crescent.",tags:["historical","ancient","war","rivers"]},
+  {id:"greek",name:"Greek City-States",scale:"medium",factions:["Athens","Sparta","Corinth","Thebes"],desc:"Athens and Sparta drag Greece into war.",tags:["historical","ancient","war","sea"]},
+  {id:"rome_civil",name:"Roman Civil Wars",scale:"large",factions:["Caesarians","Pompeians","Senate","Eastern Legions"],desc:"Generals march on Rome as the Republic falls.",tags:["historical","ancient","war","rome"]},
+  {id:"bronze",name:"Bronze Age Collapse",scale:"large",factions:["Mycenae","Hatti","Egypt","Sea Peoples","Ugarit"],desc:"Kingdoms strain under drought and sea raiders.",tags:["historical","ancient","collapse","drought"]},
+  {id:"three_kingdoms",name:"Three Kingdoms",scale:"large",factions:["Wei","Shu Han","Wu"],desc:"China shatters after the Han dynasty.",tags:["historical","ancient","war","china"]},
+  {id:"aztec",name:"Aztec Alliance",scale:"medium",factions:["Tenochtitlan","Texcoco","Tlaxcala","Tlatelolco"],desc:"Mesoamerican city-states war for tribute.",tags:["historical","ancient","jungle","war"]},
+  {id:"viking",name:"Viking Age",scale:"medium",factions:["Northmen","Danelaw","Rus Traders","Vestland"],desc:"Norse clans raid and trade cold fjords.",tags:["historical","medieval","war","cold","sea"]},
+  {id:"mongol",name:"Mongol Conquest",scale:"large",factions:["Golden Horde","Kievan Rus","Song","Persia","Hungary"],desc:"Steppe horsemen sweep across Eurasia.",tags:["historical","medieval","conquest","steppe"]},
+  {id:"crusader",name:"Crusader States",scale:"medium",factions:["Jerusalem","Antioch","Caliphate","Byzantium"],desc:"Kingdoms hold the Holy Land under siege.",tags:["historical","medieval","war","desert"]},
+  {id:"feudal",name:"Feudal Realms",scale:"medium",factions:["House Aldoran","Kingdom of Veil","Free Cities"],desc:"Kingdoms war over farmland and crowns.",tags:["historical","medieval","war","politics"]},
+  {id:"hundred_years",name:"Hundred Years War",scale:"medium",factions:["England","France","Burgundy"],desc:"France and England bleed over a throne.",tags:["historical","medieval","war","france"]},
+  {id:"sengoku",name:"Sengoku Japan",scale:"medium",factions:["Oda","Takeda","Uesugi","Mori","Shimazu"],desc:"Warring clans fight to unify Japan.",tags:["historical","medieval","war","japan"]},
+  {id:"silk_road",name:"Silk Road Empires",scale:"large",factions:["Samarkand","Tang Frontier","Persia","Khanate"],desc:"Caravan empires battle over trade routes.",tags:["historical","medieval","trade","desert"]},
+  {id:"ottoman",name:"Ottoman Expansion",scale:"large",factions:["Ottomans","Byzantium","Safavids","Venice"],desc:"A rising empire pushes into Europe.",tags:["historical","medieval","conquest","sea"]},
+  {id:"industrial",name:"Industrial Dawn",scale:"large",factions:["Albion","Ruhr Union","Gallia","Columbia"],desc:"Nations race to industrialize coal and rail.",tags:["historical","industrial","economy","modern"]},
+  {id:"colonial",name:"Colonial Scramble",scale:"large",factions:["Britannia","La France","Ashanti","Zulu","Ethiopia"],desc:"Powers carve up a contested continent.",tags:["historical","industrial","war","africa"]},
+  {id:"cold_war",name:"Cold War Proxy",scale:"medium",factions:["West Bloc","East Bloc","Non-Aligned","Insurgents"],desc:"Superpowers fight through client states.",tags:["historical","modern","war","politics"]},
+  {id:"island",name:"Island Settlers",scale:"small",factions:["Tide Clan","Palm Folk"],desc:"Tribes colonize a tropical archipelago.",tags:["survival","tropical","peaceful","small"]},
+  {id:"ice_age",name:"Ice Age Migration",scale:"large",factions:["Mammoth Hunters","Cave Bears","River Folk","Wanderers"],desc:"Bands follow herds across frozen land.",tags:["survival","ancient","cold","prehistoric"]},
+  {id:"volcanic",name:"Volcanic Archipelago",scale:"small",factions:["Highland Kin","Shore Runners","Deep Miners"],desc:"Settlers race the volcanoes for land.",tags:["survival","islands","disaster","small"]},
+  {id:"plague",name:"After the Plague",scale:"medium",factions:["City Builders","Scavengers","Communes"],desc:"Survivors rebuild from the ruins.",tags:["survival","post-apocalyptic","modern"]},
+  {id:"dragon",name:"Dragonreach",scale:"medium",factions:["Emberhold","Frostpeak","Ashen Order"],desc:"Kingdoms shelter where dragons nest.",tags:["fantasy","dragons","magic","mountains"]},
+  {id:"elven",name:"Elven Succession",scale:"medium",factions:["Sylvaris","Moonvale","Thornwood","Exiles"],desc:"Forest houses war over a throne.",tags:["fantasy","elves","forest","war"]},
+  {id:"undead",name:"The Undead Tide",scale:"large",factions:["Living Pact","Conclave","Mercenaries","Necropolis"],desc:"The living unite against the dead.",tags:["fantasy","undead","survival","dark"]},
+  {id:"pirate",name:"Pirate Archipelago",scale:"medium",factions:["Crimson Fleet","Merchant Guild","Royal Navy","Coves"],desc:"Fleets fight over island trade lanes.",tags:["fantasy","sea","trade","war"]},
+  {id:"dwarven",name:"Dwarven Hold Wars",scale:"medium",factions:["Ironmaw","Deepvein","Stonebrow","Exiles"],desc:"Clans fight over deep ore veins.",tags:["fantasy","underground","mining","war"]},
+  {id:"desert_war",name:"Desert Warlords",scale:"medium",factions:["Sand Riders","Oasis Wardens","Fallen Empire","Caravans"],desc:"War-bands fight for dying oases.",tags:["fantasy","desert","survival","war"]},
+  {id:"demon",name:"The Demon Breach",scale:"large",factions:["Mortal Alliance","Demon Vanguard","Cultists","Wanderers"],desc:"A rift opens; mortals ally or fall.",tags:["fantasy","dark","survival","magic"]},
+  {id:"colony",name:"Colony Drift",scale:"medium",factions:["Command","The Drifters","Hab-Collective"],desc:"Crashed colonists splinter on an alien world.",tags:["sci-fi","survival","future","alien"]},
+  {id:"mars",name:"Martian City-States",scale:"large",factions:["Olympus","Valles Union","Red Syndicate","Polaris","Free Domes"],desc:"Domes fight over water ice and air.",tags:["sci-fi","mars","economy","war"]},
+  {id:"machine",name:"Machine Frontier",scale:"large",factions:["Human Remnant","The Foundry","Wild Networks","Scavengers"],desc:"Humans and machines split a ruined Earth.",tags:["sci-fi","ai","post-apocalyptic","future"]},
+  {id:"deep_sea",name:"Deep Sea Colonies",scale:"medium",factions:["Abyssal Corp","Vent Commune","Surface Control"],desc:"Pressure-domes fight for vent resources.",tags:["sci-fi","ocean","economy","future"]},
+  {id:"gen_ship",name:"Generation Ship",scale:"small",factions:["Navigators","Labor Decks","Tech Priests","Sleepers"],desc:"Factions argue inside a 500-year voyage.",tags:["sci-fi","future","politics","small"]},
+  {id:"corpo",name:"Corporate Megacities",scale:"large",factions:["OmniCorp","Bio-Helix","The Syndicate","Free Net"],desc:"Megacorps replace collapsing governments.",tags:["sci-fi","economy","war","dystopia"]},
+  {id:"nuclear",name:"Nuclear Wasteland",scale:"large",factions:["Vault Keepers","Raiders","Mutant Tribes","Salvagers"],desc:"Vault survivors contest the wasteland.",tags:["sci-fi","post-apocalyptic","survival","desert"]},
+  {id:"contact",name:"First Contact",scale:"large",factions:["Contact Initiative","Military","Independents","The Signal"],desc:"An alien signal reaches a divided Earth.",tags:["sci-fi","alien","politics","future"]},
+];
+
+const SCALE_DIM = { small:8, medium:12, large:16 };  // grid cells per side
+const FACTION_COLORS = [0xff5d5d,0x5d9cff,0x5dff8a,0xffe15d,0xff5de2,0x5dffe1,0xffa45d,0xb15dff];
+
+// biome: [name, [r,g,b], elevation, treeDensity, rockDensity]
+const BIOME = [
+  ["Ocean",     [0.05,0.24,0.42], -0.6, 0,    0   ],
+  ["Beach",     [0.86,0.80,0.58],  0.2, 0.02, 0.04],
+  ["Grassland", [0.42,0.66,0.32],  0.7, 0.06, 0.03],
+  ["Forest",    [0.18,0.44,0.22],  1.0, 0.85, 0.05],
+  ["Jungle",    [0.10,0.40,0.14],  0.9, 0.95, 0.03],
+  ["Desert",    [0.88,0.76,0.46],  0.6, 0,    0.07],
+  ["Savanna",   [0.74,0.64,0.34],  0.7, 0.12, 0.04],
+  ["Taiga",     [0.20,0.36,0.26],  1.1, 0.55, 0.07],
+  ["Tundra",    [0.66,0.72,0.74],  0.7, 0.04, 0.10],
+  ["Mountain",  [0.50,0.50,0.54],  2.4, 0.05, 0.40],
+  ["Snow",      [0.92,0.95,0.99],  2.0, 0,    0.10],
+];
+const B = {OCEAN:0,BEACH:1,GRASS:2,FOREST:3,JUNGLE:4,DESERT:5,SAVANNA:6,TAIGA:7,TUNDRA:8,MOUNTAIN:9,SNOW:10};
+
+// ---------- deterministic noise ----------
+function hash2(x,y,s){ let n=(x*374761393+y*668265263+s*2147483647)>>>0;
+  n=((n^(n>>>13))*1274126177)>>>0; return ((n^(n>>>16))>>>0)/4294967295; }
+function vnoise(x,y,s){ const xi=Math.floor(x),yi=Math.floor(y),xf=x-xi,yf=y-yi;
+  const u=xf*xf*(3-2*xf),v=yf*yf*(3-2*yf);
+  const a=hash2(xi,yi,s),b=hash2(xi+1,yi,s),c=hash2(xi,yi+1,s),d=hash2(xi+1,yi+1,s);
+  return (a*(1-u)+b*u)*(1-v)+(c*(1-u)+d*u)*v; }
+function fbm(x,y,s,oct=5){ let t=0,a=1,f=1,n=0;
+  for(let i=0;i<oct;i++){ t+=a*vnoise(x*f,y*f,s); n+=a; a*=0.5; f*=2; } return t/n; }
+
+// =====================================================================
+//  SIMULATION  (ported from the Python kernel — deterministic)
+// =====================================================================
+const TICKS_PER_HOUR=60, TICKS_PER_DAY=1440, TICKS_PER_MONTH=43200,
+      TICKS_PER_SEASON=129600, TICKS_PER_YEAR=518400;
+const SEASONS=["Spring","Summer","Autumn","Winter"];
+
+class World {
+  constructor(preset){
+    this.preset = preset;
+    this.seed = 0; for(const ch of preset.id) this.seed = (this.seed*31 + ch.charCodeAt(0))>>>0;
+    this.gw = this.gh = SCALE_DIM[preset.scale] || 12;
+    this.factions = preset.factions.map((name,i)=>({
+      id:i, name, color:FACTION_COLORS[i%FACTION_COLORS.length],
+      treasury:200, army:0, atWar:new Set(),
+    }));
+    this.regions = [];
+    this.tick = 6*TICKS_PER_HOUR;  // start 06:00
+    this.wars = [];
+    this.events = [];
+    this.generate();
+  }
+
+  generate(){
+    const {gw,gh}=this, cx=(gw-1)/2, cy=(gh-1)/2, maxD=Math.hypot(cx,cy)||1;
+    for(let gy=0; gy<gh; gy++) for(let gx=0; gx<gw; gx++){
+      const n=fbm(gx*0.18,gy*0.18,this.seed,5);
+      const d=Math.hypot(gx-cx,gy-cy)/maxD;
+      const elev=n - d*0.55;
+      const moist=fbm(gx*0.22+100,gy*0.22+100,this.seed+7,4);
+      const temp=1 - gy/Math.max(1,gh-1);
+      const biome=this.biomeFor(elev,moist,temp);
+      const foodCap=this.foodCap(biome) * (0.6+0.8*hash2(gx,gy,this.seed+31));
+      this.regions.push({
+        id:gy*gw+gx, gx, gy, biome, elev:Math.max(0,elev),
+        npc:0, faction:-1,
+        food:foodCap*0.8, foodCap, foodRegen:foodCap*0.01,
+      });
+    }
+    this.placeFactions();
+  }
+
+  biomeFor(e,m,t){
+    if(e<0.02) return B.OCEAN;
+    if(e<0.06) return B.BEACH;
+    if(e>0.55) return t<0.35 ? B.SNOW : B.MOUNTAIN;
+    if(t<0.25) return m<0.5 ? B.TUNDRA : B.TAIGA;
+    if(t>0.7 && m<0.3) return B.DESERT;
+    if(t>0.6 && m<0.5) return B.SAVANNA;
+    if(m>0.6) return t>0.55 ? B.JUNGLE : B.FOREST;
+    return B.GRASS;
+  }
+  foodCap(b){ return {2:120,3:90,4:100,6:80,7:60,1:50,5:15,8:20,9:25,10:5,0:70}[b] ?? 60; }
+
+  placeFactions(){
+    let land=this.regions.filter(r=>r.biome!==B.OCEAN);
+    if(!land.length) land=this.regions.slice();
+    const nf=this.factions.length;
+    const share=Math.max(1, Math.floor(land.length*0.8/nf));
+    for(let fid=0; fid<nf; fid++){
+      const sx=Math.floor((fid+0.5)/nf*this.gw), sy=Math.floor(this.gh/2);
+      const cand=land.filter(r=>r.faction===-1)
+        .sort((a,b)=>((a.gx-sx)**2+(a.gy-sy)**2)-((b.gx-sx)**2+(b.gy-sy)**2));
+      const claimed=cand.slice(0,share);
+      const pop=180, per=Math.max(1,Math.floor(pop/Math.max(1,claimed.length)));
+      for(const r of claimed){ r.faction=fid; r.npc=per; }
+    }
+  }
+
+  step(){
+    const t=++this.tick;
+    if(t%5===0){
+      for(const r of this.regions){
+        r.food=Math.min(r.foodCap, r.food + r.foodRegen*5);
+        if(r.npc<=0) continue;
+        const cap=Math.max(1,r.foodCap*0.5);
+        const growth=0.012*r.npc*(1 - r.npc/cap);
+        const consume=r.npc*0.05;
+        if(r.food<consume){
+          const deaths=Math.max(1,Math.floor(r.npc*0.02));
+          r.npc=Math.max(0,r.npc-deaths);
+          r.food=0;
+        } else {
+          r.food-=consume;
+          r.npc=Math.max(0,Math.floor(r.npc+growth));
+        }
+      }
+    }
+    if(t%600===0 && this.factions.length>=2) this.maybeWar(t);
+    if(t%400===0 && this.factions.length>=2) this.maybeTrade(t);
+    // resolve ongoing wars: contested regions slowly change hands
+    if(t%120===0) this.resolveWars(t);
+  }
+
+  maybeWar(t){
+    if(hash2(t,1,this.seed)>0.4) return;
+    const nf=this.factions.length;
+    const a=Math.floor(hash2(t,2,this.seed)*nf)%nf;
+    const b=(a+1+Math.floor(hash2(t,3,this.seed)*(nf-1)))%nf;
+    if(a===b || this.factions[a].atWar.has(b)) return;
+    this.declareWar(a,b,false);
+  }
+  maybeTrade(t){
+    if(hash2(t,5,this.seed)>0.5) return;
+    const nf=this.factions.length;
+    const a=Math.floor(hash2(t,6,this.seed)*nf)%nf;
+    const b=(a+1)%nf;
+    if(this.factions[a].atWar.has(b)) return;
+    const gain=20+Math.floor(hash2(t,7,this.seed)*40);
+    this.factions[a].treasury+=gain; this.factions[b].treasury+=gain;
+    this.log("trade", `${this.factions[a].name} and ${this.factions[b].name} trade (+${gain} each)`);
+  }
+
+  declareWar(a,b,byPlayer){
+    if(a===b) return;
+    this.factions[a].atWar.add(b); this.factions[b].atWar.add(a);
+    if(!this.wars.find(w=>(w.a===a&&w.b===b)||(w.a===b&&w.b===a)))
+      this.wars.push({a,b});
+    this.log("war", `${byPlayer?"<b>You</b> ordered ":""}${this.factions[a].name} declares war on ${this.factions[b].name}`, byPlayer?"you":"war");
+  }
+  makePeace(a,b){
+    this.factions[a].atWar.delete(b); this.factions[b].atWar.delete(a);
+    this.wars=this.wars.filter(w=>!((w.a===a&&w.b===b)||(w.a===b&&w.b===a)));
+  }
+
+  resolveWars(t){
+    for(const w of this.wars){
+      const fa=this.factions[w.a], fb=this.factions[w.b];
+      // stronger army+treasury side raids a border region of the weaker
+      const strA=fa.army+fa.treasury*0.1, strB=fb.army+fb.treasury*0.1;
+      const winner=strA>=strB? w.a : w.b, loser=strA>=strB? w.b : w.a;
+      const targets=this.regions.filter(r=>r.faction===loser);
+      if(!targets.length) continue;
+      const tgt=targets[Math.floor(hash2(t,loser,this.seed)*targets.length)%targets.length];
+      const casualties=Math.max(2,Math.floor(tgt.npc*0.08));
+      tgt.npc=Math.max(0,tgt.npc-casualties);
+      if(tgt.npc<=2 && hash2(t,tgt.id,this.seed)>0.5){
+        tgt.faction=winner; tgt.npc=Math.max(5,tgt.npc);
+        this.log("war", `${this.factions[winner].name} seizes a region from ${this.factions[loser].name}`);
+      }
+    }
+  }
+
+  // ----- player commands (symbolic, no LLM) -----
+  command(text){
+    const s=text.toLowerCase().trim();
+    if(!s) return "Say something.";
+    const me=0; // player controls faction 0
+    const num=this.targetFaction(s);
+
+    // WAR
+    if(/\b(war|attack|invade|fight|raid|conquer)\b/.test(s) || /حرب|هاجم|اغزو|قاتل|حارب/.test(s)){
+      const tgt = num>=0 ? num : this.strongestEnemy(me);
+      if(tgt<0 || tgt===me) return "No valid target faction.";
+      this.declareWar(me,tgt,true);
+      this.factions[me].army+=30;
+      return `War declared on ${this.factions[tgt].name}. Your armies mobilize.`;
+    }
+    // PEACE
+    if(/\b(peace|truce|stop|end war|ceasefire)\b/.test(s) || /سلام|صلح|هدنة|وقف/.test(s)){
+      const enemies=[...this.factions[me].atWar];
+      if(!enemies.length) return "You are not at war.";
+      const tgt = num>=0 ? num : enemies[0];
+      this.makePeace(me,tgt);
+      this.log("you", `<b>You</b> make peace with ${this.factions[tgt].name}`, "you");
+      return `Peace signed with ${this.factions[tgt].name}.`;
+    }
+    // ARMY / RECRUIT
+    if(/\b(army|recruit|soldier|troop|mobiliz|raise)\b/.test(s) || /جيش|جند|عسكر|جيوش/.test(s)){
+      this.factions[me].army+=50;
+      this.log("you", `<b>You</b> raise a new army (+50 strength)`, "you");
+      return `Army raised. Military strength is now ${this.factions[me].army}.`;
+    }
+    // FOOD / AID
+    if(/\b(food|aid|feed|supply|harvest|farm|relief)\b/.test(s) || /طعام|اكل|غذاء|اعاشة|محصول|مساعدة/.test(s)){
+      let n=0; for(const r of this.regions) if(r.faction===me){ r.food=r.foodCap; n++; }
+      this.log("you", `<b>You</b> send food to ${n} regions`, "you");
+      return `Granaries filled across ${n} of your regions. Population will grow.`;
+    }
+    // GOLD / TREASURE
+    if(/\b(gold|money|treasure|wealth|tax|tribute|trade)\b/.test(s) || /ذهب|مال|فلوس|كنز|ضريبة|جزية|تجارة/.test(s)){
+      this.factions[me].treasury+=200;
+      this.log("you", `<b>You</b> fill the treasury (+200 gold)`, "you");
+      return `Treasury now holds ${Math.round(this.factions[me].treasury)} gold.`;
+    }
+    // POPULATION / SETTLERS
+    if(/\b(people|population|settler|grow|migrate|breed|colon)\b/.test(s) || /سكان|شعب|ناس|مستوطن|هجرة|عمار/.test(s)){
+      let n=0; for(const r of this.regions) if(r.faction===me){ r.npc+=40; n++; }
+      this.log("you", `<b>You</b> bring settlers to ${n} regions (+40 each)`, "you");
+      return `New settlers arrive across ${n} regions.`;
+    }
+    // DISASTER
+    if(/\b(disaster|earthquake|plague|famine|storm|flood|fire|volcano|strike)\b/.test(s) || /كارثة|زلزال|وباء|مجاعة|عاصفة|فيضان|حريق|بركان/.test(s)){
+      const tgt = num>=0 ? num : this.strongestEnemy(me);
+      let n=0;
+      for(const r of this.regions) if(tgt<0 || r.faction===tgt){
+        const dead=Math.floor(r.npc*0.4); r.npc-=dead; r.food*=0.4; if(dead>0)n++;
+      }
+      this.log("you", `<b>You</b> unleash disaster on ${tgt<0?"the world":this.factions[tgt].name}`, "you");
+      return `Disaster strikes ${tgt<0?"the whole world":this.factions[tgt].name} — ${n} regions devastated.`;
+    }
+    // STATUS
+    if(/\b(status|report|state|how|info)\b/.test(s) || /حالة|تقرير|وضع|اخبار/.test(s)){
+      const pop=this.totalPop(me);
+      return `${this.factions[me].name}: ${pop} people · ${Math.round(this.factions[me].treasury)} gold · army ${this.factions[me].army} · wars ${this.factions[me].atWar.size}.`;
+    }
+    return "The world doesn't understand that yet. Try: war, peace, army, food, gold, settlers, disaster.";
+  }
+
+  targetFaction(s){
+    // by ordinal word
+    const ord={first:0,second:1,third:2,fourth:3,fifth:4,"1":0,"2":1,"3":2,"4":3,"5":4,
+      الاول:0,الثاني:1,الثالث:2,الرابع:3,الخامس:4,التاني:1,التالت:2};
+    for(const k in ord){ if(s.includes(k) && ord[k]<this.factions.length) return ord[k]; }
+    // by name
+    for(const f of this.factions){ if(s.includes(f.name.toLowerCase())) return f.id; }
+    return -1;
+  }
+  strongestEnemy(me){
+    let best=-1,bv=-1;
+    for(const f of this.factions){ if(f.id===me) continue;
+      const v=this.totalPop(f.id); if(v>bv){ bv=v; best=f.id; } }
+    return best;
+  }
+  totalPop(fid){ let p=0; for(const r of this.regions) if(r.faction===fid) p+=r.npc; return p; }
+
+  log(type,text,cls){ this.events.unshift({type,text,cls:cls||type,t:Date.now()});
+    this.events=this.events.slice(0,40); }
+
+  clock(){
+    const t=this.tick;
+    return {
+      tick:t,
+      year:Math.floor(t/TICKS_PER_YEAR)+1,
+      season:SEASONS[Math.floor(t/TICKS_PER_SEASON)%4],
+      seasonIdx:Math.floor(t/TICKS_PER_SEASON)%4,
+      month:Math.floor(t/TICKS_PER_MONTH)%12+1,
+      day:Math.floor(t/TICKS_PER_DAY)%30+1,
+      hour:Math.floor(t/TICKS_PER_HOUR)%24,
+    };
+  }
+}
+
+// =====================================================================
+//  LAUNCHER UI
+// =====================================================================
+const grid=document.getElementById("grid"), chipsEl=document.getElementById("chips"),
+  searchEl=document.getElementById("search"), emptyEl=document.getElementById("empty");
+let activeTag="all", query="";
+
+function initials(n){ const w=n.trim().split(/\s+/);
+  return (w.length>=2 ? w[0][0]+w[1][0] : n.slice(0,2)).toUpperCase(); }
+
+function buildChips(){
+  const tags=new Set(["all"]); PRESETS.forEach(p=>p.tags.forEach(t=>tags.add(t)));
+  chipsEl.innerHTML="";
+  [...tags].slice(0,16).forEach(t=>{
+    const c=document.createElement("div");
+    c.className="chip"+(t===activeTag?" active":""); c.textContent=t;
+    c.onclick=()=>{ activeTag=t; buildChips(); renderCards(); };
+    chipsEl.appendChild(c);
+  });
+}
+function matches(p){
+  if(activeTag!=="all" && !p.tags.includes(activeTag)) return false;
+  if(!query) return true;
+  return (p.name+" "+p.desc+" "+p.tags.join(" ")+" "+p.factions.join(" ")).toLowerCase().includes(query);
+}
+function renderCards(){
+  grid.innerHTML="";
+  const list=PRESETS.filter(matches);
+  for(const p of list){
+    const el=document.createElement("div"); el.className="card";
+    el.innerHTML=`<div class="card-head"><div class="seal">${initials(p.name)}</div><h3>${p.name}</h3></div>
+      <p>${p.desc}</p>
+      <div class="meta">${p.tags.slice(0,3).map(t=>`<span class="tag">${t}</span>`).join("")}</div>
+      <div class="go">Enter World</div>`;
+    el.onclick=()=>launch(p);
+    grid.appendChild(el);
+  }
+  emptyEl.style.display = (list.length===0)?"block":"none";
+}
+searchEl.addEventListener("input",e=>{ query=e.target.value.trim().toLowerCase(); renderCards(); });
+buildChips(); renderCards();
+
+// =====================================================================
+//  3D VIEWER
+// =====================================================================
+const viewer=document.getElementById("viewer"), launcher=document.getElementById("launcher"),
+  loading=document.getElementById("loading");
+let renderer,scene,camera,controls,composer,sky,sunLight,hemi;
+let world=null, worldGroup, npcMesh, npcData=[], paused=false, simAccum=0;
+let particles=[];
+
+function initThree(){
+  if(renderer) return;
+  const canvas=document.getElementById("c");
+  renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:"high-performance"});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.setSize(innerWidth,innerHeight);
+  renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+  renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.1;
+  renderer.outputColorSpace=THREE.SRGBColorSpace;
+
+  scene=new THREE.Scene();
+  camera=new THREE.PerspectiveCamera(52,innerWidth/innerHeight,0.1,5000);
+  camera.position.set(70,80,120);
+
+  controls=new OrbitControls(camera,renderer.domElement);
+  controls.enableDamping=true; controls.dampingFactor=0.06;
+  controls.maxPolarAngle=Math.PI*0.49; controls.minDistance=20; controls.maxDistance=500;
+
+  sky=new Sky(); sky.scale.setScalar(5000); scene.add(sky);
+  const su=sky.material.uniforms;
+  su.turbidity.value=4; su.rayleigh.value=1.4; su.mieCoefficient.value=0.006; su.mieDirectionalG.value=0.85;
+
+  sunLight=new THREE.DirectionalLight(0xfff2d8,2.4); sunLight.castShadow=true;
+  sunLight.shadow.mapSize.set(2048,2048);
+  sunLight.shadow.camera.left=-180; sunLight.shadow.camera.right=180;
+  sunLight.shadow.camera.top=180; sunLight.shadow.camera.bottom=-180; sunLight.shadow.camera.far=700;
+  scene.add(sunLight); scene.add(sunLight.target);
+
+  hemi=new THREE.HemisphereLight(0xbfd8ff,0x33291d,0.6); scene.add(hemi);
+  scene.fog=new THREE.FogExp2(0x9fc3e8,0.0022);
+
+  composer=new EffectComposer(renderer);
+  composer.addPass(new RenderPass(scene,camera));
+  composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),0.5,0.55,0.85));
+
+  addEventListener("resize",()=>{
+    camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth,innerHeight); composer.setSize(innerWidth,innerHeight);
+  });
+  animate();
+}
+
+const CELL=7, SUB=4;  // visual units per region, subdivisions for smooth terrain
+function buildScene(){
+  if(worldGroup){ scene.remove(worldGroup); disposeGroup(worldGroup); }
+  worldGroup=new THREE.Group(); scene.add(worldGroup);
+  npcData=[];
+
+  const gw=world.gw, gh=world.gh, W=gw*CELL, H=gh*CELL;
+  const regAt=(gx,gy)=> world.regions[gy*gw+gx];
+
+  // smooth height + color sampling across subdivided grid
+  const nx=gw*SUB, ny=gh*SUB;
+  const geo=new THREE.PlaneGeometry(W,H,nx,ny); geo.rotateX(-Math.PI/2);
+  const pos=geo.attributes.position, colors=new Float32Array(pos.count*3);
+  const elevOf=r=>BIOME[r.biome][2];
+  for(let iy=0; iy<=ny; iy++) for(let ix=0; ix<=nx; ix++){
+    const i=iy*(nx+1)+ix;
+    const fx=Math.min(gw-1, ix/SUB), fy=Math.min(gh-1, iy/SUB);
+    const gx0=Math.floor(fx), gy0=Math.floor(fy), gx1=Math.min(gw-1,gx0+1), gy1=Math.min(gh-1,gy0+1);
+    const tx=fx-gx0, ty=fy-gy0;
+    const e00=elevOf(regAt(gx0,gy0)),e10=elevOf(regAt(gx1,gy0)),
+          e01=elevOf(regAt(gx0,gy1)),e11=elevOf(regAt(gx1,gy1));
+    let h=(e00*(1-tx)+e10*tx)*(1-ty)+(e01*(1-tx)+e11*tx)*ty;
+    h*=6; h+= (fbm(ix*0.3,iy*0.3,world.seed+5)-0.5)*1.2;  // micro-detail
+    pos.setY(i,h);
+    // color blend
+    const c00=BIOME[regAt(gx0,gy0).biome][1],c10=BIOME[regAt(gx1,gy0).biome][1],
+          c01=BIOME[regAt(gx0,gy1).biome][1],c11=BIOME[regAt(gx1,gy1).biome][1];
+    for(let k=0;k<3;k++){
+      colors[i*3+k]=(c00[k]*(1-tx)+c10[k]*tx)*(1-ty)+(c01[k]*(1-tx)+c11[k]*tx)*ty;
+    }
+  }
+  geo.computeVertexNormals();
+  geo.setAttribute("color",new THREE.BufferAttribute(colors,3));
+  const terr=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({vertexColors:true,roughness:0.95,metalness:0.02}));
+  terr.receiveShadow=true; worldGroup.add(terr);
+
+  // water
+  const wGeo=new THREE.PlaneGeometry(W*1.5,H*1.5,1,1); wGeo.rotateX(-Math.PI/2);
+  const water=new THREE.Mesh(wGeo,new THREE.MeshPhysicalMaterial({
+    color:0x0d5070,transparent:true,opacity:0.84,roughness:0.12,metalness:0.1,
+    transmission:0.3,ior:1.33,clearcoat:0.5}));
+  water.position.y=BIOME[0][2]*6+1.4; water.name="water"; worldGroup.add(water);
+
+  // vegetation + rocks (instanced)
+  const trunk=new THREE.CylinderGeometry(0.12,0.18,1.0,5); trunk.translate(0,0.5,0);
+  const leaf=new THREE.ConeGeometry(0.6,1.6,6); leaf.translate(0,1.6,0);
+  const treeGeo=mergeGeo([trunk,leaf]);
+  const treeMat=new THREE.MeshStandardMaterial({color:0x2c5526,roughness:1,flatShading:true});
+  const treeMesh=new THREE.InstancedMesh(treeGeo,treeMat,20000); treeMesh.castShadow=true;
+  const rockGeo=new THREE.DodecahedronGeometry(0.5,0);
+  const rockMat=new THREE.MeshStandardMaterial({color:0x76746e,roughness:1,flatShading:true});
+  const rockMesh=new THREE.InstancedMesh(rockGeo,rockMat,6000); rockMesh.castShadow=true;
+  const d=new THREE.Object3D(); let ti=0,ri=0;
+
+  for(let gy=0; gy<gh; gy++) for(let gx=0; gx<gw; gx++){
+    const r=regAt(gx,gy), bi=BIOME[r.biome];
+    const bx=(gx-gw/2+0.5)*CELL, bz=(gy-gh/2+0.5)*CELL, by=bi[2]*6;
+    const nT=Math.min(7,Math.floor(bi[3]*9));
+    for(let k=0;k<nT && ti<20000;k++){
+      d.position.set(bx+(hash2(gx*3+k,gy*7,11)-0.5)*CELL*0.9, by, bz+(hash2(gx*5,gy*3+k,22)-0.5)*CELL*0.9);
+      d.rotation.set(0,hash2(gx+k,gy,44)*6.28,0); d.scale.setScalar(0.7+hash2(gx,gy+k,33)*0.9);
+      d.updateMatrix(); treeMesh.setMatrixAt(ti++,d.matrix);
+    }
+    const nR=Math.min(3,Math.floor(bi[4]*8));
+    for(let k=0;k<nR && ri<6000;k++){
+      d.position.set(bx+(hash2(gx*9+k,gy*2,55)-0.5)*CELL*0.8, by+0.2, bz+(hash2(gx*2,gy*9+k,66)-0.5)*CELL*0.8);
+      d.rotation.set(hash2(gx,k,1)*6,hash2(gy,k,2)*6,hash2(gx,gy,3)*6); d.scale.setScalar(0.5+hash2(gx,gy,k)*0.8);
+      d.updateMatrix(); rockMesh.setMatrixAt(ri++,d.matrix);
+    }
+  }
+  treeMesh.count=ti; rockMesh.count=ri; worldGroup.add(treeMesh,rockMesh);
+
+  // NPCs — instanced capsules, faction colored, animated
+  const cap=new THREE.CapsuleGeometry(0.2,0.55,3,6);
+  const npcMat=new THREE.MeshStandardMaterial({vertexColors:true,emissive:0xffffff,emissiveIntensity:0.35,roughness:0.5});
+  const MAXN=12000;
+  npcMesh=new THREE.InstancedMesh(cap,npcMat,MAXN); npcMesh.castShadow=true;
+  const cols=new Float32Array(MAXN*3), col=new THREE.Color();
+  let ni=0;
+  for(let gy=0; gy<gh; gy++) for(let gx=0; gx<gw; gx++){
+    const r=regAt(gx,gy); if(r.biome===B.OCEAN||r.faction<0) continue;
+    const bi=BIOME[r.biome], bx=(gx-gw/2+0.5)*CELL, bz=(gy-gh/2+0.5)*CELL, by=bi[2]*6;
+    const show=Math.min(14,Math.ceil(r.npc/3));
+    col.set(world.factions[r.faction].color);
+    for(let k=0;k<show && ni<MAXN;k++){
+      const ox=(hash2(gx*4+k,gy*6,101)-0.5)*CELL*0.8, oz=(hash2(gx*6,gy*4+k,202)-0.5)*CELL*0.8;
+      npcData.push({bx:bx+ox,bz:bz+oz,by:by+0.5,ph:hash2(gx,gy+k,303)*6.28,reg:r.id});
+      col.toArray(cols,ni*3); ni++;
+    }
+  }
+  npcMesh.count=ni; cap.setAttribute("color",new THREE.InstancedBufferAttribute(cols,3));
+  worldGroup.add(npcMesh);
+
+  // frame camera
+  const span=Math.max(W,H);
+  camera.position.set(span*0.55,span*0.6,span*0.8);
+  controls.target.set(0,0,0); controls.update();
+}
+
+function mergeGeo(gs){
+  const out=new THREE.BufferGeometry(); let P=[],N=[],I=[],off=0;
+  for(const g of gs){ const p=g.attributes.position.array,n=g.attributes.normal.array,idx=g.index.array;
+    for(const v of p)P.push(v); for(const v of n)N.push(v); for(const v of idx)I.push(v+off); off+=p.length/3; }
+  out.setAttribute("position",new THREE.Float32BufferAttribute(P,3));
+  out.setAttribute("normal",new THREE.Float32BufferAttribute(N,3));
+  out.setIndex(I); return out;
+}
+function disposeGroup(g){ g.traverse(o=>{ if(o.geometry)o.geometry.dispose();
+  if(o.material){ (Array.isArray(o.material)?o.material:[o.material]).forEach(m=>m.dispose()); } }); }
+
+// particle burst for events
+function burst(regionId,color,count=40){
+  const r=world.regions[regionId]; if(!r) return;
+  const gw=world.gw, bx=(r.gx-gw/2+0.5)*CELL, bz=(r.gy-world.gh/2+0.5)*CELL, by=BIOME[r.biome][2]*6+1;
+  const g=new THREE.BufferGeometry(), pos=new Float32Array(count*3), vel=[];
+  for(let i=0;i<count;i++){ pos[i*3]=bx; pos[i*3+1]=by; pos[i*3+2]=bz;
+    vel.push([(Math.random()-0.5)*8,Math.random()*12+4,(Math.random()-0.5)*8]); }
+  g.setAttribute("position",new THREE.BufferAttribute(pos,3));
+  const m=new THREE.PointsMaterial({color,size:1.2,transparent:true,opacity:1});
+  const pts=new THREE.Points(g,m); scene.add(pts);
+  particles.push({pts,vel,life:1.0,g});
+}
+
+// =====================================================================
+//  HUD
+// =====================================================================
+const el=id=>document.getElementById(id);
+function updateHUD(){
+  const c=world.clock();
+  el("clockDate").textContent=`Year ${c.year} — ${c.season}`;
+  el("clockSub").textContent=`Day ${c.day} · ${String(c.hour).padStart(2,"0")}:00 · tick ${c.tick}`;
+  // sun
+  const ang=((c.hour-6)/24)*Math.PI*2;
+  const sx=Math.cos(ang),sy=Math.sin(ang)*0.9+0.12,sz=Math.sin(ang*0.5);
+  const sun=new THREE.Vector3(sx,sy,sz).normalize();
+  sky.material.uniforms.sunPosition.value.copy(sun);
+  sunLight.position.copy(sun).multiplyScalar(220);
+  const night=sun.y<0.05;
+  sunLight.intensity=night?0.15:THREE.MathUtils.clamp(sun.y*3,0.3,2.5);
+  hemi.intensity=night?0.18:0.6; renderer.toneMappingExposure=night?0.65:1.1;
+
+  // factions
+  const fl=el("factionList"); fl.innerHTML="";
+  const pops=world.factions.map(f=>({f,pop:world.totalPop(f.id)}));
+  const maxPop=Math.max(1,...pops.map(p=>p.pop));
+  pops.sort((a,b)=>b.pop-a.pop);
+  for(const {f,pop} of pops){
+    const hex="#"+f.color.toString(16).padStart(6,"0");
+    const war=f.atWar.size?` · ${f.atWar.size} war${f.atWar.size>1?"s":""}`:"";
+    const row=document.createElement("div"); row.className="frow";
+    row.innerHTML=`<div class="fdot" style="color:${hex};background:${hex}"></div>
+      <div style="flex:1">
+        <div style="display:flex;justify-content:space-between">
+          <span class="fname">${f.name}${f.id===0?" (you)":""}</span>
+          <span class="fpop">${pop.toLocaleString()}${war}</span>
+        </div>
+        <div class="fbar"><div style="width:${Math.round(pop/maxPop*100)}%;background:${hex}"></div></div>
+      </div>`;
+    fl.appendChild(row);
+  }
+  // stats
+  let total=0; for(const r of world.regions) total+=r.npc;
+  el("sPop").textContent=total.toLocaleString();
+  el("sWars").textContent=world.wars.length;
+  el("sReg").textContent=world.regions.length;
+}
+function renderEvents(){
+  const list=el("eventList"); list.innerHTML="";
+  for(const e of world.events.slice(0,11)){
+    const ago=Math.max(0,Math.floor((Date.now()-e.t)/1000));
+    const row=document.createElement("div"); row.className=`erow e-${e.cls}`;
+    row.innerHTML=`<span class="et">${ago}s</span>${e.text}`;
+    list.appendChild(row);
+  }
+}
+
+// =====================================================================
+//  RENDER LOOP
+// =====================================================================
+let last=performance.now(),frames=0,fpsT=0,prevNpc=null;
+function animate(){
+  requestAnimationFrame(animate);
+  const now=performance.now(), dt=(now-last)/1000; last=now;
+  controls.update();
+
+  if(world && !paused){
+    simAccum+=dt;
+    const stepDt=1/30;
+    let steps=0;
+    while(simAccum>=stepDt && steps<6){ world.step(); simAccum-=stepDt; steps++; }
+    if(steps>0){ hudAccum+=dt; }
+  }
+  // throttle HUD ~5Hz
+  hudAccum+=dt;
+  if(world && hudAccum>0.2){ hudAccum=0; updateHUD(); renderEvents(); maybeRebuildNpc(); }
+
+  // animate NPCs (gentle wander/bob)
+  if(npcMesh && npcData.length){
+    const d=new THREE.Object3D(), t=now*0.001;
+    for(let i=0;i<npcData.length;i++){
+      const n=npcData[i];
+      const wob=Math.sin(t*1.5+n.ph)*0.6;
+      d.position.set(n.bx+Math.cos(t*0.3+n.ph)*0.5, n.by+Math.abs(Math.sin(t*2+n.ph))*0.15, n.bz+wob*0.4);
+      d.rotation.y=t*0.3+n.ph; d.updateMatrix(); npcMesh.setMatrixAt(i,d.matrix);
+    }
+    npcMesh.instanceMatrix.needsUpdate=true;
+  }
+  // particles
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i]; p.life-=dt*0.8;
+    const pos=p.g.attributes.position.array;
+    for(let k=0;k<p.vel.length;k++){
+      p.vel[k][1]-=18*dt;
+      pos[k*3]+=p.vel[k][0]*dt; pos[k*3+1]+=p.vel[k][1]*dt; pos[k*3+2]+=p.vel[k][2]*dt;
+    }
+    p.g.attributes.position.needsUpdate=true; p.pts.material.opacity=Math.max(0,p.life);
+    if(p.life<=0){ scene.remove(p.pts); p.g.dispose(); p.pts.material.dispose(); particles.splice(i,1); }
+  }
+
+  frames++; fpsT+=dt;
+  if(fpsT>0.5){ el("sFps").textContent=Math.round(frames/fpsT); frames=0; fpsT=0; }
+  composer.render();
+}
+let hudAccum=0;
+
+// rebuild NPC instances only when population changed a lot (cheap visual sync)
+function maybeRebuildNpc(){
+  const sig=world.regions.reduce((a,r)=>a+r.npc+(r.faction+1)*1000,0);
+  if(prevNpc===null){ prevNpc=sig; return; }
+  if(Math.abs(sig-prevNpc) > 400){ prevNpc=sig; rebuildNpcOnly(); }
+}
+function rebuildNpcOnly(){
+  if(!npcMesh) return;
+  const gw=world.gw,gh=world.gh; npcData=[];
+  const cols=npcMesh.geometry.attributes.color.array, col=new THREE.Color(); let ni=0;
+  for(let gy=0;gy<gh;gy++) for(let gx=0;gx<gw;gx++){
+    const r=world.regions[gy*gw+gx]; if(r.biome===B.OCEAN||r.faction<0) continue;
+    const bi=BIOME[r.biome], bx=(gx-gw/2+0.5)*CELL, bz=(gy-gh/2+0.5)*CELL, by=bi[2]*6;
+    const show=Math.min(14,Math.ceil(r.npc/3)); col.set(world.factions[r.faction].color);
+    for(let k=0;k<show && ni<12000;k++){
+      const ox=(hash2(gx*4+k,gy*6,101)-0.5)*CELL*0.8, oz=(hash2(gx*6,gy*4+k,202)-0.5)*CELL*0.8;
+      npcData.push({bx:bx+ox,bz:bz+oz,by:by+0.5,ph:hash2(gx,gy+k,303)*6.28,reg:r.id});
+      col.toArray(cols,ni*3); ni++;
+    }
+  }
+  npcMesh.count=ni; npcMesh.geometry.attributes.color.needsUpdate=true;
+}
+
+// =====================================================================
+//  FLOW: launch / back / commands
+// =====================================================================
+function launch(preset){
+  loading.classList.add("show"); el("loadText").textContent=`BUILDING ${preset.name.toUpperCase()}…`;
+  setTimeout(()=>{
+    initThree();
+    world=new World(preset);
+    world.log("info","World created. You command "+world.factions[0].name+".","info");
+    buildScene(); updateHUD(); renderEvents();
+    el("worldName").textContent=preset.name;
+    launcher.style.display="none"; viewer.style.display="block";
+    loading.classList.remove("show");
+    paused=false; el("pauseBtn").textContent="Pause";
+    buildHints();
+    setTimeout(()=>el("cmdInput").focus(),100);
+  },120);
+}
+el("backBtn").onclick=()=>{ viewer.style.display="none"; launcher.style.display="block"; world=null; };
+el("pauseBtn").onclick=()=>{ paused=!paused; el("pauseBtn").textContent=paused?"Resume":"Pause"; };
+
+function runCommand(){
+  const inp=el("cmdInput"), text=inp.value.trim(); if(!text||!world) return;
+  const reply=world.command(text);
+  el("cmdLog").innerHTML=`<b>You:</b> ${escapeHtml(text)} &nbsp;—&nbsp; ${reply}`;
+  inp.value="";
+  // visual feedback bursts
+  const low=text.toLowerCase();
+  if(/war|attack|حرب|هاجم|disaster|كارثة|زلزال/.test(low)){
+    const enemy=world.strongestEnemy(0);
+    const tgts=world.regions.filter(r=>r.faction===enemy).slice(0,3);
+    tgts.forEach(r=>burst(r.id,0xff5530,50));
+  } else if(/food|gold|army|settler|طعام|ذهب|جيش|سكان/.test(low)){
+    const mine=world.regions.filter(r=>r.faction===0).slice(0,3);
+    mine.forEach(r=>burst(r.id,0x7dffc4,40));
+  }
+  updateHUD(); renderEvents(); rebuildNpcOnly();
+}
+el("cmdSend").onclick=runCommand;
+el("cmdInput").addEventListener("keydown",e=>{ if(e.key==="Enter") runCommand(); });
+
+const HINTS=["Declare war","Make peace","Raise an army","Send food","Fill treasury","Bring settlers","Unleash disaster","Status report"];
+function buildHints(){
+  const h=el("hints"); h.innerHTML="";
+  for(const t of HINTS){ const c=document.createElement("div"); c.className="hint"; c.textContent=t;
+    c.onclick=()=>{ el("cmdInput").value=t; runCommand(); }; h.appendChild(c); }
+}
+function escapeHtml(s){ return s.replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[m])); }
+</script>
+</body>
+</html>
